@@ -252,7 +252,7 @@ struct pcap {
 #ifdef PCAP_SUPPORT_PFQ
     struct pfq_pcap_handler
     {
-        pcap_handler    *pcap_handler;
+        pcap_handler    pcap_handler;
         u_char          *pcap_user;
         pfq_t           *q;
     } handler;

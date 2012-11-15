@@ -170,6 +170,10 @@ static const char rcsid[] _U_ =
 #include "pcap-canusb-linux.h"
 #endif
 
+#if PCAP_SUPPORT_PFQ
+#include "pcap-pfq-linux.h"
+#endif
+
 #ifdef PCAP_SUPPORT_NETFILTER
 #include "pcap-netfilter-linux.h"
 #endif
@@ -447,6 +451,11 @@ pcap_create(const char *device, char *ebuf)
 	}
 #endif
 
+
+#ifdef PCAP_SUPPORT_PFQ
+	return pfq_create(device, ebuf);
+#endif
+	
 	handle = pcap_create_common(device, ebuf);
 	if (handle == NULL)
 		return NULL;
