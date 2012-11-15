@@ -1446,7 +1446,7 @@ fi
 
 AC_ARG_ENABLE([pfq],
 [AC_HELP_STRING([--enable-pfq],[enable PFQ support])],
-enable_pfq=no)
+,enable_pfq=no)
 
 if test "x$enable_pfq" != "xno" ; then
 	dnl check for PFQ sniffing support
@@ -1455,6 +1455,7 @@ if test "x$enable_pfq" != "xno" ; then
 		AC_CHECK_HEADER(linux/pf_q.h,
 			[ AC_DEFINE(PCAP_SUPPORT_PFQ, 1, [target host supports PFQ sniffing])
 			PFQ_SRC=pcap-pfq-linux.c
+			LIBS=-lpfq
 			AC_MSG_NOTICE(PFQ sniffing is supported)],
 			AC_MSG_NOTICE(PFQ sniffing is not supported),
 			[#include <linux/if_ether.h>]

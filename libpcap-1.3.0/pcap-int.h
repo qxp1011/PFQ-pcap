@@ -60,6 +60,11 @@ extern CRITICAL_SECTION g_PcapCompileCriticalSection;
 #include <snf.h>
 #endif
 
+#ifdef PCAP_SUPPORT_PFQ
+#include <linux/pf_q.h>
+#include <pfq/pfq.h>
+#endif
+
 #if (defined(_MSC_VER) && (_MSC_VER <= 1200)) /* we are compiling with Visual Studio 6, that doesn't support the LL suffix*/
 
 /*
@@ -243,6 +248,16 @@ typedef int	(*setmintocopy_op_t)(pcap_t *, int);
 typedef void	(*cleanup_op_t)(pcap_t *);
 
 struct pcap {
+
+#ifdef PCAP_SUPPORT_PFQ
+    struct pfq_pcap_handler
+    {
+        pcap_handler    *pcap_handler;
+        u_char          *pcap_user;
+        pfq_t           *q;
+    } handler;
+#endif
+
 #ifdef WIN32
 	ADAPTER *adapter;
 	LPPACKET Packet;
