@@ -30,13 +30,8 @@
 namespace opt {
 
     int sleep_microseconds;
-    std::string steer_function;
 
     size_t caplen = 64;
-    size_t offset = 0;
-    size_t slots  = 262144;
-
-    int group_id  = 42;
 
     bool flow = false;
 
@@ -110,7 +105,7 @@ namespace test
         char m_error[PCAP_ERRBUF_SIZE];
 
         ctx(int id, const char *d, const std::vector<int> & q)
-        : m_id(id), m_dev(d), m_queues(q), m_stop(false), m_pcap(pcap_open_live(d, opt::caplen, 1, 0, m_error)), m_read()
+        : m_id(id), m_dev(d), m_queues(q), m_stop(false), m_pcap(pcap_open_live(d, opt::caplen, 1, -1, m_error)), m_read()
         {
             if (m_pcap == nullptr)
             {
@@ -246,7 +241,7 @@ void usage(const char *name)
 {
     throw std::runtime_error(std::string("usage: ")
                .append(name)
-               .append("[-h|--help] [-c caplen] [-o offset] [-f | --flow] [-s slots] [-g gid ] [-x|--steer function-name] T1 T2... \n\t| T = dev:core:queue,queue..."));
+               .append("[-h|--help] [-c caplen] [-f | --flow] T1 T2... \n\t| T = dev:core:queue,queue..."));
 }
 
 
@@ -265,19 +260,6 @@ try
     // load vbinding vector:
     for(int i = 1; i < argc; ++i)
     {
-        if ( strcmp(argv[i], "-x") == 0 ||
-             strcmp(argv[i], "--steer") == 0) {
-            i++;
-            if (i == argc)
-            {
-                throw std::runtime_error("steer function missing");
-            }
-            opt::steer_function.assign(argv[i]);
-
-            std::cout << "Balancing with [" << opt::steer_function << "]" << std::endl;
-            continue;
-        }
-
         if ( strcmp(argv[i], "-c") == 0 ||
              strcmp(argv[i], "--caplen") == 0) {
             i++;
@@ -287,46 +269,6 @@ try
             }
 
             opt::caplen = std::atoi(argv[i]);
-            continue;
-        }
-
-        if ( strcmp(argv[i], "-o") == 0 ||
-             strcmp(argv[i], "--offset") == 0) {
-            i++;
-            if (i == argc)
-            {
-                throw std::runtime_error("offset missing");
-            }
-
-            opt::offset = std::atoi(argv[i]);
-            continue;
-        }
-
-        if ( strcmp(argv[i], "-s") == 0 ||
-             strcmp(argv[i], "--slots") == 0) {
-            i++;
-            if (i == argc)
-            {
-                throw std::runtime_error("slots missing");
-            }
-
-            opt::slots = std::atoi(argv[i]);
-            continue;
-        }
-
-        if ( strcmp(argv[i], "-g") == 0 ||
-             strcmp(argv[i], "--gid") == 0) {
-            i++;
-            if (i == argc)
-            {
-                throw std::runtime_error("group_id missing");
-            }
-
-            if (strcmp(argv[i], "any") == 0)
-                opt::group_id = -1;
-            else
-                opt::group_id = std::atoi(argv[i]);
-
             continue;
         }
 
@@ -345,15 +287,7 @@ try
     }
     
     std::cout << "caplen: " << opt::caplen << std::endl;
-    std::cout << "slots : " << opt::slots << std::endl;
 
-    if (opt::flow) {
-        std::cout << "forcing offset to 14 bytes..." << std::endl;
-        opt::offset = 14;
-    }
-    
-    std::cout << "offset: " << opt::offset << std::endl;
-    
     // create threads' context:
     //
     for(unsigned int i = 0; i < vbinding.size(); ++i)
