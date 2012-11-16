@@ -69,7 +69,7 @@ static int pfq_setfilter_linux(pcap_t *p, struct bpf_program *fp)
 }
 
 
-static int pfq_activate_linux(pcap_t *p)
+static int pfq_activate_linux(pcap_t *handle)
 {
 	const char *device;
 	int queue  = Q_ANY_QUEUE;
@@ -80,12 +80,12 @@ static int pfq_activate_linux(pcap_t *p)
 
 	char *opt;
 
-	p->linktype = DLT_EN10MB;
-	p->offset = 0;
+	handle->linktype = DLT_EN10MB;
+	handle->offset = 0;
 
 	if (opt = getenv("PFQ_OFFSET"))
 	{
-		offset = p->offset = atoi(opt);
+		offset = handle->offset = atoi(opt);
 	}
 	if (opt = getenv("PFQ_QUEUE_SLOTS"))
 	{
@@ -96,17 +96,17 @@ static int pfq_activate_linux(pcap_t *p)
 		caplen = atoi(opt);
 	}
 
-	device = p->opt.source;
+	device = handle->opt.source;
 
-	p->read_op 		= pfq_read_linux;
-	p->inject_op 		= pfq_inject_linux;
-	p->setfilter_op 	= pfq_setfilter_linux; 
-	p->setdirection_op 	= pfq_setdirection_linux;
-	p->getnonblock_op 	= pcap_getnonblock_fd;
-	p->setnonblock_op 	= pcap_setnonblock_fd;
-	p->stats_op 		= pfq_stats_linux;
-	p->cleanup_op 		= pfq_cleanup_linux;
-	p->set_datalink_op 	= NULL;	/* can't change data link type */
+	handle->read_op 		= pfq_read_linux;
+	handle->inject_op 		= pfq_inject_linux;
+	handle->setfilter_op 	= pfq_setfilter_linux; 
+	handle->setdirection_op 	= pfq_setdirection_linux;
+	handle->getnonblock_op 	= pcap_getnonblock_fd;
+	handle->setnonblock_op 	= pcap_setnonblock_fd;
+	handle->stats_op 		= pfq_stats_linux;
+	handle->cleanup_op 		= pfq_cleanup_linux;
+	handle->set_datalink_op 	= NULL;	/* can't change data link type */
 
 	/*
 	 * The "any" device is a special device which causes us not
@@ -115,18 +115,18 @@ static int pfq_activate_linux(pcap_t *p)
 	 */
 
 	if (strcmp(device, "any") == 0) { 
-		if (p->opt.promisc) {
-			p->opt.promisc = 0;
+		if (handle->opt.promisc) {
+			handle->opt.promisc = 0;
 			/* Just a warning. */
-			snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 			    "Promiscuous mode not supported on the \"any\" device");
 			status = PCAP_WARNING_PROMISC_NOTSUP;
 		}
 	}
 
-	p->md.device = strdup(device);
-	if (p->md.device == NULL) {
-		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "strdup: %s",
+	handle->md.device = strdup(device);
+	if (handle->md.device == NULL) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "strdup: %s",
 			 pcap_strerror(errno) );
 		return PCAP_ERROR;
 	}
@@ -137,59 +137,59 @@ static int pfq_activate_linux(pcap_t *p)
 	 * initial count from /proc/net/dev
 	 */
 
-	// if (p->opt.promisc)
-	//	p->md.proc_dropped = linux_if_drops(p->md.device);
+	// if (handle->opt.promisc)
+	//	handle->md.proc_dropped = linux_if_drops(handle->md.device);
 
-	p->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
-	if (p->handler.q == NULL)
+	handle->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
+	if (handle->handler.q == NULL)
 	{
 		fprintf(stderr, "[PFQ] could not open group!\n");
 		goto fail;
 	}
 
-	if (pfq_bind(p->handler.q, device, queue) == -1) 
+	if (pfq_bind(handle->handler.q, device, queue) == -1) 
 	{	
 		fprintf(stderr, "[PFQ] bind: could not bind device %s (queue=%d)!\n", device, queue);
 		goto fail;
 	}
 
-	if (pfq_set_timestamp(p->handler.q, 1) == -1) 
+	if (pfq_set_timestamp(handle->handler.q, 1) == -1) 
 	{
 		fprintf(stderr, "[PFQ] could not enable timestamps!\n");
 		goto fail;
 	}
 
-	if (pfq_enable(p->handler.q) == -1)
+	if (pfq_enable(handle->handler.q) == -1)
 	{
 		fprintf(stderr, "[PFQ] could not enable socket!\n");
 		goto fail;
 	}
 
-	p->selectable_fd = pfq_get_fd(p->handler.q);
+	handle->selectable_fd = pfq_get_fd(handle->handler.q);
 
 	status = 1;
 	return status;
 
 fail:
-	pfq_cleanup_linux(p);
+	pfq_cleanup_linux(handle);
 	status = -1;
 	return status;
 }
 
 
-static int pfq_inject_linux(pcap_t *p, const void * buf, size_t size)
+static int pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
-	snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "inject not supported");
-	return (-1);
+	snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported");
+	return PCAP_ERROR;
 }
 
 
-void pfq_cleanup_linux(pcap_t *p)
+void pfq_cleanup_linux(pcap_t *handle)
 {
-	if(p->handler.q)
-		pfq_close(p->handler.q);
+	if(handle->handler.q)
+		pfq_close(handle->handler.q);
 
-	pcap_cleanup_live_common(p);
+	pcap_cleanup_live_common(handle);
 }
 
 
@@ -208,27 +208,27 @@ void pfq_callback (char *user, const struct pfq_hdr *pfq_h, const char *data)
 }
 
 
-static int pfq_read_linux(pcap_t *p, int max_packets, pcap_handler callback, u_char *user)
+static int pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
 {
-	p->handler.pcap_handler = callback;
-	p->handler.pcap_user 	= user;
+	handle->handler.pcap_handler = callback;
+	handle->handler.pcap_user 	= user;
 
-	return pfq_dispatch(p->handler.q, pfq_callback, p->md.timeout * 1000, (void *)p, max_packets);
+	return pfq_dispatch(handle->handler.q, pfq_callback, handle->md.timeout * 1000, (void *)handle, max_packets);
 }
 
 
-static int pfq_setdirection_linux(pcap_t *p, pcap_direction_t d)
+static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 {
-	snprintf(p->errbuf, sizeof(p->errbuf), "Setting direction is not supported with PFQ enabled");
-	return (-1);
+	snprintf(handle->errbuf, sizeof(handle->errbuf), "Setting direction is not supported with PFQ enabled");
+	return PCAP_ERROR;
 }
 
 
-static int pfq_stats_linux(pcap_t *p, struct pcap_stat *stat)
+static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
 	struct pfq_stats pstats;
 
-	if(pfq_get_stats(p->handler.q, &pstats) < 0)
+	if(pfq_get_stats(handle->handler.q, &pstats) < 0)
 	{
         	return -1;
 	}
