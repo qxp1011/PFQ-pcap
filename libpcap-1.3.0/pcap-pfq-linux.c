@@ -147,7 +147,10 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-		int gid = atoi(opt);
+		int gid = atoi(opt);                      
+
+                fprintf(stderr, "[PFQ] capture group %d\n", gid);
+
 		if (pfq_join_group(handle->handler.q, gid, Q_CLASS_DEFAULT, Q_GROUP_SHARED) < 0)
 		{
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
@@ -156,13 +159,21 @@ static int pfq_activate_linux(pcap_t *handle)
 
 		if (opt = getenv("PFQ_STEERFUN"))
 		{
+                	fprintf(stderr, "[PFQ] steering function: %s\n", opt);
 			if (pfq_steering_function(handle->handler.q, gid, opt) < 0)
 			{
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 				goto fail;
 			}
 		}
+		
+		/* bind to device */
 
+		if (pfq_bind_group(handle->handler.q, gid, device, queue) == -1) 
+		{	
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			goto fail;
+		}
 	}
 	else
 	{
@@ -172,15 +183,16 @@ static int pfq_activate_linux(pcap_t *handle)
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 			goto fail;
 		}
+		
+		/* bind to device */
+
+		if (pfq_bind(handle->handler.q, device, queue) == -1) 
+		{	
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			goto fail;
+		}
 	}
 
-	/* bind to device */
-
-	if (pfq_bind(handle->handler.q, device, queue) == -1) 
-	{	
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
-		goto fail;
-	}
 
 	/* enable timestamping */
 
