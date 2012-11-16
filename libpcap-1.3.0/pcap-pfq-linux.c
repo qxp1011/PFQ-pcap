@@ -2,19 +2,19 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
 #include <pcap-int.h>
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
-#include <linux/filter.h>
 #include <stdlib.h>
 
 #include <pcap.h>
 
-// pfq
+#include <linux/filter.h>
 #include <linux/if_ether.h>
-
 #include <linux/pf_q.h>
+
 #include <pfq/pfq.h>
 
 #include <sys/types.h>
@@ -43,8 +43,6 @@
 static 	int pfq_activate_linux(pcap_t *);
 static 	int pfq_inject_linux(pcap_t *, const void *, size_t);
 static	int pfq_setdirection_linux(pcap_t *, pcap_direction_t);
-//static int pfq_getnonblock_fd(pcap_t *, char *);
-//static int pfq_setnonblock_fd(pcap_t *, char *);
 static  void pfq_cleanup_linux(pcap_t *);
 static 	int pfq_read_linux(pcap_t *, int, pcap_handler, u_char *);
 static 	int pfq_stats_linux(pcap_t *, struct pcap_stat *);
@@ -73,8 +71,8 @@ static int pfq_activate_linux(pcap_t *handle)
 {
 	const char *device;
 	int queue  = Q_ANY_QUEUE;
-	int caplen = p->snapshot; 
-	int slots  = 256;
+	int caplen = handle->snapshot; 
+	int slots  = 131072;
 	int offset = 0;
 	int status = 0;
 
@@ -87,7 +85,7 @@ static int pfq_activate_linux(pcap_t *handle)
 	{
 		offset = handle->offset = atoi(opt);
 	}
-	if (opt = getenv("PFQ_QUEUE_SLOTS"))
+	if (opt = getenv("PFQ_SLOTS"))
 	{
 		slots = atoi(opt);
 	}
@@ -100,10 +98,10 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	handle->read_op 		= pfq_read_linux;
 	handle->inject_op 		= pfq_inject_linux;
-	handle->setfilter_op 	= pfq_setfilter_linux; 
+	handle->setfilter_op 		= pfq_setfilter_linux; 
 	handle->setdirection_op 	= pfq_setdirection_linux;
-	handle->getnonblock_op 	= pcap_getnonblock_fd;
-	handle->setnonblock_op 	= pcap_setnonblock_fd;
+	handle->getnonblock_op 		= pcap_getnonblock_fd;
+	handle->setnonblock_op 		= pcap_setnonblock_fd;
 	handle->stats_op 		= pfq_stats_linux;
 	handle->cleanup_op 		= pfq_cleanup_linux;
 	handle->set_datalink_op 	= NULL;	/* can't change data link type */
@@ -140,12 +138,43 @@ static int pfq_activate_linux(pcap_t *handle)
 	// if (handle->opt.promisc)
 	//	handle->md.proc_dropped = linux_if_drops(handle->md.device);
 
-	handle->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
-	if (handle->handler.q == NULL)
-	{	
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
-		goto fail;
+	if (opt = getenv("PFQ_GROUP"))
+	{
+		handle->handler.q = pfq_open_nogroup(caplen, offset, slots);
+		if (handle->handler.q == NULL)
+		{	
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			goto fail;
+		}
+
+		int gid = atoi(opt);
+		if (pfq_join_group(handle->handler.q, gid, Q_CLASS_DEFAULT, Q_GROUP_SHARED) < 0)
+		{
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			goto fail;
+		}
+
+		if (opt = getenv("PFQ_STEERFUN"))
+		{
+			if (pfq_steering_function(handle->handler.q, gid, opt) < 0)
+			{
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+				goto fail;
+			}
+		}
+
 	}
+	else
+	{
+		handle->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
+		if (handle->handler.q == NULL)
+		{	
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			goto fail;
+		}
+	}
+
+	/* bind to device */
 
 	if (pfq_bind(handle->handler.q, device, queue) == -1) 
 	{	
@@ -153,11 +182,15 @@ static int pfq_activate_linux(pcap_t *handle)
 		goto fail;
 	}
 
+	/* enable timestamping */
+
 	if (pfq_set_timestamp(handle->handler.q, 1) == -1) 
 	{
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 		goto fail;
 	}
+
+	/* enable socket */
 
 	if (pfq_enable(handle->handler.q) == -1)
 	{
