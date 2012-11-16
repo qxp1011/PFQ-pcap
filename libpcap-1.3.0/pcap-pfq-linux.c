@@ -142,26 +142,26 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	handle->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
 	if (handle->handler.q == NULL)
-	{
-		fprintf(stderr, "[PFQ] could not open group!\n");
+	{	
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 		goto fail;
 	}
 
 	if (pfq_bind(handle->handler.q, device, queue) == -1) 
 	{	
-		fprintf(stderr, "[PFQ] bind: could not bind device %s (queue=%d)!\n", device, queue);
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 		goto fail;
 	}
 
 	if (pfq_set_timestamp(handle->handler.q, 1) == -1) 
 	{
-		fprintf(stderr, "[PFQ] could not enable timestamps!\n");
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 		goto fail;
 	}
 
 	if (pfq_enable(handle->handler.q) == -1)
 	{
-		fprintf(stderr, "[PFQ] could not enable socket!\n");
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
 		goto fail;
 	}
 
