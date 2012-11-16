@@ -213,6 +213,11 @@ static int pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback
 	handle->handler.pcap_handler = callback;
 	handle->handler.pcap_user 	= user;
 
+	if (handle->break_loop) 
+	{
+        	handle->break_loop = 0;
+        	return PCAP_ERROR_BREAK;
+	}
 	return pfq_dispatch(handle->handler.q, pfq_callback, handle->md.timeout * 1000, (void *)handle, max_packets);
 }
 
