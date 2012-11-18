@@ -211,14 +211,11 @@ static int pfq_activate_linux(pcap_t *handle)
 	}
 
 	handle->selectable_fd = pfq_get_fd(handle->q_data.q);
-
-	status = 1;
-	return status;
+	return 0;
 
 fail:
 	pfq_cleanup_linux(handle);
-	status = -1;
-	return status;
+	return PCAP_ERROR;
 }
 
 
