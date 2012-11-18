@@ -140,10 +140,10 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_GROUP"))
 	{
-		handle->handler.q = pfq_open_nogroup(caplen, offset, slots);
-		if (handle->handler.q == NULL)
+		handle->q_data.q = pfq_open_nogroup(caplen, offset, slots);
+		if (handle->q_data.q == NULL)
 		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 
@@ -151,44 +151,44 @@ static int pfq_activate_linux(pcap_t *handle)
 
                 fprintf(stderr, "[PFQ] capture group %d\n", gid);
 
-		if (pfq_join_group(handle->handler.q, gid, Q_CLASS_DEFAULT, Q_GROUP_SHARED) < 0)
+		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_GROUP_SHARED) < 0)
 		{
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 
 		if (opt = getenv("PFQ_STEERFUN"))
 		{
                 	fprintf(stderr, "[PFQ] steering function: %s\n", opt);
-			if (pfq_steering_function(handle->handler.q, gid, opt) < 0)
+			if (pfq_steering_function(handle->q_data.q, gid, opt) < 0)
 			{
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				goto fail;
 			}
 		}
 		
 		/* bind to device */
 
-		if (pfq_bind_group(handle->handler.q, gid, device, queue) == -1) 
+		if (pfq_bind_group(handle->q_data.q, gid, device, queue) == -1) 
 		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 	}
 	else
 	{
-		handle->handler.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
-		if (handle->handler.q == NULL)
+		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
+		if (handle->q_data.q == NULL)
 		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 		
 		/* bind to device */
 
-		if (pfq_bind(handle->handler.q, device, queue) == -1) 
+		if (pfq_bind(handle->q_data.q, device, queue) == -1) 
 		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 	}
@@ -196,21 +196,21 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	/* enable timestamping */
 
-	if (pfq_set_timestamp(handle->handler.q, 1) == -1) 
+	if (pfq_set_timestamp(handle->q_data.q, 1) == -1) 
 	{
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		goto fail;
 	}
 
 	/* enable socket */
 
-	if (pfq_enable(handle->handler.q) == -1)
+	if (pfq_enable(handle->q_data.q) == -1)
 	{
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->handler.q));
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		goto fail;
 	}
 
-	handle->selectable_fd = pfq_get_fd(handle->handler.q);
+	handle->selectable_fd = pfq_get_fd(handle->q_data.q);
 
 	status = 1;
 	return status;
@@ -231,8 +231,8 @@ static int pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 
 void pfq_cleanup_linux(pcap_t *handle)
 {
-	if(handle->handler.q)
-		pfq_close(handle->handler.q);
+	if(handle->q_data.q)
+		pfq_close(handle->q_data.q);
 
 	pcap_cleanup_live_common(handle);
 }
@@ -246,24 +246,26 @@ void pfq_callback (char *user, const struct pfq_hdr *pfq_h, const char *data)
 	pcap_h.ts.tv_usec = pfq_h->tstamp.tv.nsec / 1000;
 	pcap_h.caplen     = pfq_h->caplen;
 	pcap_h.len        = pfq_h->len;
+	
+	pcap_t * handle = (pcap_t *)user;
+	
+	pcap_handler callback = handle->q_data.callback;
 
-	pcap_handler cb  = ((pcap_t*)user)->handler.pcap_handler;
-
-	cb(((pcap_t *)user)->handler.pcap_user, &pcap_h, data);
+	callback(handle->q_data.pcap_user, &pcap_h, data);
 }
 
 
 static int pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
 {
-	handle->handler.pcap_handler = callback;
-	handle->handler.pcap_user 	= user;
+	handle->q_data.callback  = callback;
+	handle->q_data.pcap_user = user;
 
 	if (handle->break_loop) 
 	{
         	handle->break_loop = 0;
         	return PCAP_ERROR_BREAK;
 	}
-	return pfq_dispatch(handle->handler.q, pfq_callback, handle->md.timeout * 1000, (void *)handle, max_packets);
+	return pfq_dispatch(handle->q_data.q, pfq_callback, handle->md.timeout * 1000, (void *)handle, max_packets);
 }
 
 

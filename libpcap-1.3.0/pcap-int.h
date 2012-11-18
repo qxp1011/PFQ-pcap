@@ -252,10 +252,10 @@ struct pcap {
 #ifdef PCAP_SUPPORT_PFQ
     struct pfq_pcap_handler
     {
-        pcap_handler    pcap_handler;
+        pcap_handler    callback;
         u_char          *pcap_user;
         pfq_t           *q;
-    } handler;
+    } q_data;
 #endif
 
 #ifdef WIN32
