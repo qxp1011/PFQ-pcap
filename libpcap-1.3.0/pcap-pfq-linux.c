@@ -252,6 +252,8 @@ void pfq_callback (char *user, const struct pfq_hdr *pfq_h, const char *data)
 	pcap_handler callback = handle->q_data.callback;
 
 	callback(handle->q_data.pcap_user, &pcap_h, data);
+	
+	handle->md.packets_read++;
 }
 
 
@@ -279,15 +281,15 @@ static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
 	struct pfq_stats pstats;
-
-	if(pfq_get_stats(handle->handler.q, &pstats) < 0)
+	
+	if(pfq_get_stats(handle->q_data.q, &pstats) < 0)
 	{
         	return -1;
 	}
 	
-	stat->ps_recv   = (u_int) pstats.recv;	
-	stat->ps_drop   = (u_int) pstats.drop;	
-	stat->ps_ifdrop = (u_int) pstats.drop + pstats.lost;	
+	stat->ps_recv   = handle->md.packets_read;
+	stat->ps_drop   = pstats.recv - handle->md.packets_read;
+	stat->ps_ifdrop = (u_int) pstats.drop + (u_int) pstats.lost;	
 
 	return 0;
 }
