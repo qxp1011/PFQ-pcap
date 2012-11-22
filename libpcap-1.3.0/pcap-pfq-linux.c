@@ -10,6 +10,7 @@
 #include <stdlib.h>
 
 #include <pcap.h>
+#include "pcap/sll.h"
 
 #include <linux/filter.h>
 #include <linux/if_ether.h>
@@ -61,8 +62,273 @@ pcap_t *pfq_create(const char *device, char *ebuf)
 }
 
 
-static int pfq_setfilter_linux(pcap_t *p, struct bpf_program *fp)
+static int
+set_kernel_filter(pcap_t *handle, struct sock_fprog *fcode)
 {
+	int gid = 0;
+	char *opt;
+	if (opt = getenv("PFQ_GROUP"))
+	{
+		gid = atoi(opt);
+	}
+	
+	return pfq_group_fprog(handle->q_data.q, gid, fcode);
+}
+
+
+static int
+reset_kernel_filter(pcap_t *handle)
+{
+	int gid = 0;
+	char *opt;
+	if (opt = getenv("PFQ_GROUP"))
+	{
+		gid = atoi(opt);
+	}
+	
+	return pfq_group_fprog_reset(handle->q_data.q, gid);
+}
+
+
+static int
+fix_offset(struct bpf_insn *p)
+{
+	/*
+	 * What's the offset?
+	 */
+	if (p->k >= SLL_HDR_LEN) {
+		/*
+		 * It's within the link-layer payload; that starts at an
+		 * offset of 0, as far as the kernel packet filter is
+		 * concerned, so subtract the length of the link-layer
+		 * header.
+		 */
+		p->k -= SLL_HDR_LEN;
+	} else if (p->k == 0) {
+		/*
+		 * It's the packet type field; map it to the special magic
+		 * kernel offset for that field.
+		 */
+		p->k = SKF_AD_OFF + SKF_AD_PKTTYPE;
+	} else if (p->k == 14) {
+		/*
+		 * It's the protocol field; map it to the special magic
+		 * kernel offset for that field.
+		 */
+		p->k = SKF_AD_OFF + SKF_AD_PROTOCOL;
+	} else if ((bpf_int32)(p->k) > 0) {
+		/*
+		 * It's within the header, but it's not one of those
+		 * fields; we can't do that in the kernel, so punt
+		 * to userland.
+		 */
+		return -1;
+	}
+	return 0;
+}
+
+
+static int
+fix_program(pcap_t *handle, struct sock_fprog *fcode, int is_mmapped)
+{
+	size_t prog_size;
+	register int i;
+	register struct bpf_insn *p;
+	struct bpf_insn *f;
+	int len;
+
+	/*
+	 * Make a copy of the filter, and modify that copy if
+	 * necessary.
+	 */
+	prog_size = sizeof(*handle->fcode.bf_insns) * handle->fcode.bf_len;
+	len = handle->fcode.bf_len;
+	f = (struct bpf_insn *)malloc(prog_size);
+	if (f == NULL) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+			 "malloc: %s", pcap_strerror(errno));
+		return -1;
+	}
+	memcpy(f, handle->fcode.bf_insns, prog_size);
+	fcode->len = len;
+	fcode->filter = (struct sock_filter *) f;
+
+	for (i = 0; i < len; ++i) {
+		p = &f[i];
+		/*
+		 * What type of instruction is this?
+		 */
+		switch (BPF_CLASS(p->code)) {
+
+		case BPF_RET:
+			/*
+			 * It's a return instruction; are we capturing
+			 * in memory-mapped mode?
+			 */
+			if (!is_mmapped) {
+				/*
+				 * No; is the snapshot length a constant,
+				 * rather than the contents of the
+				 * accumulator?
+				 */
+				if (BPF_MODE(p->code) == BPF_K) {
+					/*
+					 * Yes - if the value to be returned,
+					 * i.e. the snapshot length, is
+					 * anything other than 0, make it
+					 * 65535, so that the packet is
+					 * truncated by "recvfrom()",
+					 * not by the filter.
+					 *
+					 * XXX - there's nothing we can
+					 * easily do if it's getting the
+					 * value from the accumulator; we'd
+					 * have to insert code to force
+					 * non-zero values to be 65535.
+					 */
+					if (p->k != 0)
+						p->k = 65535;
+				}
+			}
+			break;
+
+		case BPF_LD:
+		case BPF_LDX:
+			/*
+			 * It's a load instruction; is it loading
+			 * from the packet?
+			 */
+			switch (BPF_MODE(p->code)) {
+
+			case BPF_ABS:
+			case BPF_IND:
+			case BPF_MSH:
+				/*
+				 * Yes; are we in cooked mode?
+				 */
+				if (handle->md.cooked) {
+					/*
+					 * Yes, so we need to fix this
+					 * instruction.
+					 */
+					if (fix_offset(p) < 0) {
+						/*
+						 * We failed to do so.
+						 * Return 0, so our caller
+						 * knows to punt to userland.
+						 */
+						return 0;
+					}
+				}
+				break;
+			}
+			break;
+		}
+	}
+	return 1;	/* we succeeded */
+}
+
+
+static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
+{
+	struct sock_fprog	fcode;
+	int			can_filter_in_kernel;
+	int			err = 0;
+	
+	if (!handle)
+		return -1;
+	if (!filter) {
+	        strncpy(handle->errbuf, "[PFQ] setfilter: No filter specified",
+			PCAP_ERRBUF_SIZE);
+		return -1;
+	}
+
+	/* Make our private copy of the filter */
+
+	if (install_bpf_program(handle, filter) < 0)
+		/* install_bpf_program() filled in errbuf */
+		return -1;
+
+	/*
+	 * Run user level packet filter by default. Will be overriden if
+	 * installing a kernel filter succeeds.
+	 */
+	handle->md.use_bpf = 0;
+
+	switch (fix_program(handle, &fcode, 1)) {
+
+	case -1:
+	default:
+		/*
+		 * Fatal error; just quit.
+		 * (The "default" case shouldn't happen; we
+		 * return -1 for that reason.)
+		 */
+		return -1;
+
+	case 0:
+		/*
+		 * The program performed checks that we can't make
+		 * work in the kernel.
+		 */
+		can_filter_in_kernel = 0;
+		break;
+
+	case 1:
+		/*
+		 * We have a filter that'll work in the kernel.
+		 */
+		can_filter_in_kernel = 1;
+		break;
+	}
+	
+	if (can_filter_in_kernel) 
+	{
+		if ((err = set_kernel_filter(handle, &fcode)) == 0)
+		{
+			/* Installation succeded - using kernel filter. */
+			handle->md.use_bpf = 1;
+		}
+		else if (err == -1)	/* Non-fatal error */
+		{
+			/*
+			 * Print a warning if we weren't able to install
+			 * the filter for a reason other than "this kernel
+			 * isn't configured to support socket filters.
+			 */
+			if (errno != ENOPROTOOPT && errno != EOPNOTSUPP) {
+				fprintf(stderr,
+				    "[PFQ] Kernel filter failed: %s\n",
+					pcap_strerror(errno));
+			}
+		}
+	}
+	else 
+	{
+		printf("[PFQ] could not set BPF filter in kernel!\n");
+	}
+
+	/*
+	 * If we're not using the kernel filter, get rid of any kernel
+	 * filter that might've been there before, e.g. because the
+	 * previous filter could work in the kernel, or because some other
+	 * code attached a filter to the socket by some means other than
+	 * calling "pcap_setfilter()".  Otherwise, the kernel filter may
+	 * filter out packets that would pass the new userland filter.
+	 */
+	if (!handle->md.use_bpf)
+		reset_kernel_filter(handle);
+
+	/*
+	 * Free up the copy of the filter that was made by "fix_program()".
+	 */
+	if (fcode.filter != NULL)
+		free(fcode.filter);
+
+	if (err == -2)
+		/* Fatal error */
+		return -1;
+
 	return 0;
 }
 
