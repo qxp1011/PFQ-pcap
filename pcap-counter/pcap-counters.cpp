@@ -35,6 +35,8 @@ namespace opt {
 
     bool flow = false;
 
+    const char *filter;
+
     static const int seconds = 600;
 }
 
@@ -110,7 +112,18 @@ namespace test
             if (m_pcap == nullptr)
             {
                 throw std::runtime_error(std::string("pcap_open_live: ") + m_error);
+            }
 
+            if (opt::filter)
+            {
+                struct bpf_program fp;
+                if (pcap_compile(m_pcap, &fp, opt::filter, 1, PCAP_NETMASK_UNKNOWN) < 0)
+                    throw std::runtime_error(std::string("pcap_compile"));
+
+                if (pcap_setfilter(m_pcap, &fp) < 0)
+                    throw std::runtime_error("pcap_setfilter");
+
+                pcap_freecode(&fp); 
             }
         }
         
@@ -241,7 +254,7 @@ void usage(const char *name)
 {
     throw std::runtime_error(std::string("usage: ")
                .append(name)
-               .append("[-h|--help] [-c caplen] [-f | --flow] T1 T2... \n\t| T = dev:core:queue,queue..."));
+               .append("[-h|--help] [-c caplen] [-f | --flow] [-bpf | --filter filter] T1 T2... \n\t| T = dev:core:queue,queue..."));
 }
 
 
@@ -276,6 +289,18 @@ try
              strcmp(argv[i], "--flow") == 0)
         {
             opt::flow = true;
+            continue;
+        }
+
+        if ( strcmp(argv[i], "-bpf") == 0 ||
+             strcmp(argv[i], "--filter") == 0) {
+            i++;
+            if (i == argc)
+            {
+                throw std::runtime_error("filter missing");
+            }
+
+            opt::filter = argv[i];
             continue;
         }
 
