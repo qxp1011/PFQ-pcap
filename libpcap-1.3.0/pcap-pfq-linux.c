@@ -338,7 +338,7 @@ static int pfq_activate_linux(pcap_t *handle)
 	const char *device;
 	int queue  = Q_ANY_QUEUE;
 	int caplen = handle->snapshot; 
-	int slots  = 131072;
+	int slots  = 262144;
 	int offset = 0;
 	int status = 0;
 
@@ -501,36 +501,58 @@ void pfq_cleanup_linux(pcap_t *handle)
 }
 
 
-void pfq_callback (char *user, const struct pfq_hdr *pfq_h, const char *data)
+static int 
+pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
 {
-	struct pcap_pkthdr pcap_h;
-	
-	pcap_h.ts.tv_sec  = pfq_h->tstamp.tv.sec;
-	pcap_h.ts.tv_usec = pfq_h->tstamp.tv.nsec / 1000;
-	pcap_h.caplen     = pfq_h->caplen;
-	pcap_h.len        = pfq_h->len;
-	
-	pcap_t * handle = (pcap_t *)user;
-	
-	pcap_handler callback = handle->q_data.callback;
+	int n = max_packets;
+	struct pfq_net_queue nq;
 
-	callback(handle->q_data.pcap_user, &pcap_h, data);
+	pfq_iterator_t it, it_end;
+
+        if (handle->q_data.current == handle->q_data.end)
+	{
+        	if (pfq_read(handle->q_data.q, &nq, handle->md.timeout > 0 ? handle->md.timeout * 1000 : 50000) < 0)
+		{
+			snprintf(handle->errbuf, sizeof(handle->errbuf), "PFQ read error");
+			return PCAP_ERROR;
+		}
+		handle->q_data.current = pfq_net_queue_begin(&nq);
+		handle->q_data.end     = pfq_net_queue_end(&nq);
+	}
 	
-	handle->md.packets_read++;
-}
+	it = handle->q_data.current;
+	it_end = handle->q_data.end;
 
+	for(; (max_packets <= 0 || n > 0) && (it != it_end); it = pfq_net_queue_next(&nq, it))
+	{
+		struct pcap_pkthdr pcap_h;
+		struct pfq_hdr *h;
 
-static int pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
-{
-	handle->q_data.callback  = callback;
-	handle->q_data.pcap_user = user;
+		while (!pfq_iterator_ready(&nq, it))
+			pfq_yield();
 
+		h = pfq_iterator_header(it);
+		
+		pcap_h.ts.tv_sec  = h->tstamp.tv.sec;
+		pcap_h.ts.tv_usec = h->tstamp.tv.nsec / 1000;
+		pcap_h.caplen     = h->caplen;
+		pcap_h.len        = h->len;
+
+		callback(user, &pcap_h, pfq_iterator_data(it));
+
+		handle->md.packets_read++;
+		n--;
+	}
+	
 	if (handle->break_loop) 
 	{
-        	handle->break_loop = 0;
-        	return PCAP_ERROR_BREAK;
+		handle->break_loop = 0;
+		return PCAP_ERROR_BREAK;
 	}
-	return pfq_dispatch(handle->q_data.q, pfq_callback, handle->md.timeout * 1000, (void *)handle, max_packets);
+
+	handle->q_data.current = it;
+
+	return 0;
 }
 
 
@@ -543,16 +565,16 @@ static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 
 static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
-	struct pfq_stats pstats;
+	struct pfq_stats qstats;
 	
-	if(pfq_get_stats(handle->q_data.q, &pstats) < 0)
+	if(pfq_get_stats(handle->q_data.q, &qstats) < 0)
 	{
         	return -1;
 	}
 	
 	stat->ps_recv   = handle->md.packets_read;
-	stat->ps_drop   = pstats.recv - handle->md.packets_read;
-	stat->ps_ifdrop = (u_int) pstats.drop + (u_int) pstats.lost;	
+	stat->ps_drop   = 0;
+	stat->ps_ifdrop = (u_int) qstats.drop + (u_int) qstats.lost;	
 
 	return 0;
 }

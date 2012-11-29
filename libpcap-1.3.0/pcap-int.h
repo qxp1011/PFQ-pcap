@@ -252,9 +252,9 @@ struct pcap {
 #ifdef PCAP_SUPPORT_PFQ
     struct pfq_pcap_handler
     {
-        pcap_handler    callback;
-        u_char          *pcap_user;
         pfq_t           *q;
+        pfq_iterator_t 	current;
+        pfq_iterator_t 	end;
     } q_data;
 #endif
 
