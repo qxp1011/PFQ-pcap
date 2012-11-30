@@ -423,7 +423,7 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-		if (opt = getenv("PFQ_STEERFUN"))
+		if (opt = getenv("PFQ_STEER"))
 		{
                 	fprintf(stderr, "[PFQ] steering function: %s\n", opt);
 			if (pfq_steering_function(handle->q_data.q, gid, opt) < 0)
