@@ -11,6 +11,7 @@
 
 #include <pcap.h>
 #include "pcap/sll.h"
+#include "pcap/vlan.h"
 
 #include <linux/filter.h>
 #include <linux/if_ether.h>
@@ -527,18 +528,37 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 	{
 		struct pcap_pkthdr pcap_h;
 		struct pfq_hdr *h;
+                uint16_t vlan_tci;
+		const char *pkt;
 
 		while (!pfq_iterator_ready(&nq, it))
 			pfq_yield();
 
-		h = pfq_iterator_header(it);
+		h = (struct pfq_hdr *)pfq_iterator_header(it);
 		
 		pcap_h.ts.tv_sec  = h->tstamp.tv.sec;
 		pcap_h.ts.tv_usec = h->tstamp.tv.nsec / 1000;
 		pcap_h.caplen     = h->caplen;
 		pcap_h.len        = h->len;
 
-		callback(user, &pcap_h, pfq_iterator_data(it));
+		pkt = pfq_iterator_data(it);
+
+		if ((vlan_tci = h->un.vlan_tci) != 0)
+		{
+			struct vlan_tag *tag;
+                	
+			pkt -= VLAN_TAG_LEN;
+			
+			memmove((char *)pkt, pkt + VLAN_TAG_LEN, 2 * ETH_ALEN);
+			
+			tag = (struct vlan_tag *)(pkt + 2 * ETH_ALEN);
+			tag->vlan_tpid = htons(ETH_P_8021Q);
+			tag->vlan_tci  = htons(vlan_tci);
+
+			pcap_h.len += VLAN_TAG_LEN; 
+		}
+
+		callback(user, &pcap_h, pkt);
 
 		handle->md.packets_read++;
 		n--;
