@@ -334,9 +334,33 @@ static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 }
 
 
+typedef int (*pfq_dev_handler_t)(const char *);
+
+int pfq_for_each_device(const char *ds, pfq_dev_handler_t handler)
+{
+        char * mutable = strdup(ds);
+        char *str, *token, *saveptr;
+        int i, ret = 0;
+
+        for (i = 1, str = mutable; ; i++, str = NULL)
+        {
+                token = strtok_r(str, ":", &saveptr);
+                if (token == NULL)
+                        break;
+                if (handler(token) <0) {
+		        ret = PCAP_ERROR;
+			break;
+		}
+        }
+
+        free(mutable);
+	return ret;
+}
+
+
 static int pfq_activate_linux(pcap_t *handle)
 {
-	const char *device;
+	const char *device = NULL;
 	int queue  = Q_ANY_QUEUE;
 	int caplen = handle->snapshot; 
 	int slots  = 262144;
@@ -373,6 +397,26 @@ static int pfq_activate_linux(pcap_t *handle)
 	handle->cleanup_op 		= pfq_cleanup_linux;
 	handle->set_datalink_op 	= NULL;	/* can't change data link type */
 
+	handle->q_data.cleanup 		= 0;
+
+	handle->fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (handle->fd == -1) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+			 "socket: %s", pcap_strerror(errno));
+		if (errno == EPERM || errno == EACCES) {
+			/*
+			 * You don't have permission to open the
+			 * socket.
+			 */
+			return PCAP_ERROR_PERM_DENIED;
+		} else {
+			/*
+			 * Other error.
+			 */
+			return PCAP_ERROR;
+		}
+	}
+
 	/*
 	 * The "any" device is a special device which causes us not
 	 * to bind to a particular device and thus to look at all
@@ -380,12 +424,72 @@ static int pfq_activate_linux(pcap_t *handle)
 	 */
 
 	if (strcmp(device, "any") == 0) { 
-		if (handle->opt.promisc) {
-			handle->opt.promisc = 0;
-			/* Just a warning. */
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			    "Promiscuous mode not supported on the \"any\" device");
-			status = PCAP_WARNING_PROMISC_NOTSUP;
+
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+				"[PFQ] \"any\" device not supported (use pfq syntax: eth0:eth1:ethx...)");
+		return PCAP_ERROR;
+	}
+
+	/* handle promisc */
+
+	if (handle->opt.promisc)
+	{
+        	/* put all devic(es) in promisc mode */
+                int n = 0;
+
+		int set_promisc(const char *dev)
+		{
+			struct ifreq ifr;
+			
+			memset(&ifr, 0, sizeof(ifr));
+			strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
+			if (ioctl(handle->fd, SIOCGIFFLAGS, &ifr) == -1) {
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+						"SIOCGIFFLAGS: %s", pcap_strerror(errno));
+				return PCAP_ERROR;
+			}
+			if ((ifr.ifr_flags & IFF_PROMISC) == 0) {
+
+				/*
+				 * Promiscuous mode isn't currently on,
+				 * so turn it on, and remember that
+				 * we should turn it off when the
+				 * pcap_t is closed.
+				 */
+
+				/*
+				 * If we haven't already done so, arrange
+				 * to have "pcap_close_all()" called when
+				 * we exit.
+				 */
+				if (!pcap_do_addexit(handle)) {
+					/*
+					 * "atexit()" failed; don't put
+					 * the interface in promiscuous
+					 * mode, just give up.
+					 */
+					return PCAP_ERROR;
+				}
+
+				ifr.ifr_flags |= IFF_PROMISC;
+				if (ioctl(handle->fd, SIOCSIFFLAGS, &ifr) == -1) {
+					snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+							"SIOCSIFFLAGS: %s",
+							pcap_strerror(errno));
+					return PCAP_ERROR;
+				}
+
+				handle->q_data.cleanup |= (1 << n);
+				handle->md.must_do_on_close |= MUST_CLEAR_PROMISC;
+			}
+
+			n++;
+			return 0;
+		}
+
+		if (pfq_for_each_device(device, set_promisc) < 0)
+		{
+			return PCAP_ERROR;
 		}
 	}
 
@@ -407,14 +511,25 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_GROUP"))
 	{
+		int gid = atoi(opt);                      
+		
+		int bind_group(const char *dev)
+		{
+                	fprintf(stderr, "[PFQ] binding group %d on dev %s...\n", gid, dev);
+			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1) 
+			{	
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+				return PCAP_ERROR;
+			}
+			return 0;
+		}
+
 		handle->q_data.q = pfq_open_nogroup(caplen, offset, slots);
 		if (handle->q_data.q == NULL)
 		{	
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
-
-		int gid = atoi(opt);                      
 
                 fprintf(stderr, "[PFQ] capture group %d\n", gid);
 
@@ -434,16 +549,26 @@ static int pfq_activate_linux(pcap_t *handle)
 			}
 		}
 		
-		/* bind to device */
+		/* bind to device(es) */
 
-		if (pfq_bind_group(handle->q_data.q, gid, device, queue) == -1) 
-		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		if (pfq_for_each_device(device, bind_group) < 0)
+		{
 			goto fail;
 		}
 	}
 	else
 	{
+		int bind_socket(const char *dev)
+		{
+                	fprintf(stderr, "[PFQ] binding dev %s...\n", dev);
+			if (pfq_bind(handle->q_data.q, dev, queue) == -1) 
+			{	
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+				return PCAP_ERROR;
+			}
+			return 0;
+		}
+
 		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
 		if (handle->q_data.q == NULL)
 		{	
@@ -451,15 +576,13 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 		
-		/* bind to device */
+		/* bind to device(es) */
 
-		if (pfq_bind(handle->q_data.q, device, queue) == -1) 
-		{	
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		if (pfq_for_each_device(device, bind_socket) < 0)
+		{
 			goto fail;
 		}
 	}
-
 
 	/* enable timestamping */
 
@@ -495,8 +618,65 @@ static int pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 
 void pfq_cleanup_linux(pcap_t *handle)
 {
-	if(handle->q_data.q)
+	int n = 0;
+	int clear_promisc(const char *dev)
+	{
+		struct ifreq ifr;
+
+		if (!(handle->q_data.cleanup & (1 << n++)))
+			return 0;
+
+		fprintf(stderr, "[PFQ] clear promisc on %s...\n", dev);
+		
+		memset(&ifr, 0, sizeof(ifr));
+		strncpy(ifr.ifr_name, dev,
+				sizeof(ifr.ifr_name));
+		if (ioctl(handle->fd, SIOCGIFFLAGS, &ifr) == -1) {
+			fprintf(stderr,
+					"Can't restore interface %s flags (SIOCGIFFLAGS failed: %s).\n"
+					"Please adjust manually.\n"
+					"Hint: This can't happen with Linux >= 2.2.0.\n",
+					dev, strerror(errno));
+		} else {
+			if (ifr.ifr_flags & IFF_PROMISC) {
+				/*
+				 * Promiscuous mode is currently on;
+				 * turn it off.
+				 */
+				ifr.ifr_flags &= ~IFF_PROMISC;
+				if (ioctl(handle->fd, SIOCSIFFLAGS,
+							&ifr) == -1) {
+					fprintf(stderr,
+							"Can't restore interface %s flags (SIOCSIFFLAGS failed: %s).\n"
+							"Please adjust manually.\n"
+							"Hint: This can't happen with Linux >= 2.2.0.\n",
+							dev,
+							strerror(errno));
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	if (handle->md.must_do_on_close & MUST_CLEAR_PROMISC) {
+
+		pfq_for_each_device(handle->md.device, clear_promisc);
+	}
+
+	fprintf(stderr, "[PFQ] close socket...\n");
+	
+	if(handle->q_data.q) {
 		pfq_close(handle->q_data.q);
+		handle->q_data.q = NULL;
+	}
+
+	close(handle->fd);
+
+	if (handle->md.device != NULL) {
+		free(handle->md.device);
+		handle->md.device = NULL;
+	}
 
 	pcap_cleanup_live_common(handle);
 }
