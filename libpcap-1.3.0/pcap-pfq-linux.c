@@ -367,6 +367,8 @@ static int pfq_activate_linux(pcap_t *handle)
 	int offset = 0;
 	int status = 0;
 
+        const int max_caplen = 2048;
+	
 	char *opt;
 
 	handle->linktype = DLT_EN10MB;
@@ -508,6 +510,12 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	// if (handle->opt.promisc)
 	//	handle->md.proc_dropped = linux_if_drops(handle->md.device);
+
+        if (caplen > max_caplen)
+        {
+                fprintf(stderr, "[PFQ] capture length too large (%d) -> %d forced!\n", caplen, max_caplen);
+                caplen = max_caplen;
+        }
 
 	if (opt = getenv("PFQ_GROUP"))
 	{
