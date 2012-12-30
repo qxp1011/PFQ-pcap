@@ -687,6 +687,7 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 {
 	int n = max_packets;
 	struct pfq_net_queue nq;
+        int start = handle->md.packets_read;
 
 	pfq_iterator_t it, it_end;
 
@@ -751,8 +752,7 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 	}
 
 	handle->q_data.current = it;
-
-	return 0;
+	return handle->md.packets_read-start;
 }
 
 
