@@ -591,6 +591,43 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 	}
+	
+	/* set vlan filters */
+
+	if (opt = getenv("PFQ_VLAN_ID"))
+        {
+                int gid = pfq_group_id(handle->q_data.q);
+
+                if (gid == -1) {
+                	fprintf(stderr, "[PFQ] group %d error!\n", gid);
+                	return PCAP_ERROR;
+                }
+
+
+                if (pfq_vlan_filters_enabled(handle->q_data.q, gid, 1) < 0)
+                {
+                	fprintf(stderr, "[PFQ] group %d enabling vlan filters error!\n", gid);
+                	return PCAP_ERROR;
+                }
+
+		int set_vlan_filter(const char *vid_)
+		{
+		        int vid = atoi(vid_);
+
+                	fprintf(stderr, "[PFQ] group %d setting vlan filer id=%d\n", gid, vid);
+			if (pfq_vlan_set_filter(handle->q_data.q, gid, vid)  == -1) 
+			{	
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+				return PCAP_ERROR;
+			}
+			return 0;
+		}
+
+		if (pfq_for_each_token(opt, ",", set_vlan_filter) < 0)
+                {
+                        goto fail;
+                }
+        }
 
 	/* enable timestamping */
 
