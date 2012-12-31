@@ -594,7 +594,7 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	/* enable timestamping */
 
-	if (pfq_set_timestamp(handle->q_data.q, 1) == -1) 
+	if (pfq_timestamp_enabled(handle->q_data.q, 1) == -1) 
 	{
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		goto fail;
