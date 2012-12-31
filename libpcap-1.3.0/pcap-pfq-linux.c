@@ -334,9 +334,9 @@ static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 }
 
 
-typedef int (*pfq_dev_handler_t)(const char *);
+typedef int (*pfq_token_handler_t)(const char *);
 
-int pfq_for_each_device(const char *ds, pfq_dev_handler_t handler)
+int pfq_for_each_token(const char *ds, const char *sep, pfq_token_handler_t handler)
 {
         char * mutable = strdup(ds);
         char *str, *token, *saveptr;
@@ -344,7 +344,7 @@ int pfq_for_each_device(const char *ds, pfq_dev_handler_t handler)
 
         for (i = 1, str = mutable; ; i++, str = NULL)
         {
-                token = strtok_r(str, ":", &saveptr);
+                token = strtok_r(str, sep, &saveptr);
                 if (token == NULL)
                         break;
                 if (handler(token) <0) {
@@ -489,7 +489,7 @@ static int pfq_activate_linux(pcap_t *handle)
 			return 0;
 		}
 
-		if (pfq_for_each_device(device, set_promisc) < 0)
+		if (pfq_for_each_token(device, ":", set_promisc) < 0)
 		{
 			return PCAP_ERROR;
 		}
@@ -559,7 +559,7 @@ static int pfq_activate_linux(pcap_t *handle)
 		
 		/* bind to device(es) */
 
-		if (pfq_for_each_device(device, bind_group) < 0)
+		if (pfq_for_each_token(device, ":", bind_group) < 0)
 		{
 			goto fail;
 		}
@@ -586,7 +586,7 @@ static int pfq_activate_linux(pcap_t *handle)
 		
 		/* bind to device(es) */
 
-		if (pfq_for_each_device(device, bind_socket) < 0)
+		if (pfq_for_each_token(device, ":", bind_socket) < 0)
 		{
 			goto fail;
 		}
@@ -669,7 +669,7 @@ void pfq_cleanup_linux(pcap_t *handle)
 
 	if (handle->md.must_do_on_close & MUST_CLEAR_PROMISC) {
 
-		pfq_for_each_device(handle->md.device, clear_promisc);
+		pfq_for_each_token(handle->md.device, ":", clear_promisc);
 	}
 
 	fprintf(stderr, "[PFQ] close socket...\n");
