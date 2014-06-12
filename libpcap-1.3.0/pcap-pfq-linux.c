@@ -28,17 +28,17 @@
 #include <poll.h>
 
 /*
-	typedef int	(*activate_op_t)(pcap_t *);				
-	typedef int	(*can_set_rfmon_op_t)(pcap_t *);			
+	typedef int	(*activate_op_t)(pcap_t *);
+	typedef int	(*can_set_rfmon_op_t)(pcap_t *);
 	typedef int	(*read_op_t)(pcap_t *, int cnt, pcap_handler, u_char *);
-	typedef int	(*inject_op_t)(pcap_t *, const void *, size_t);		
-	typedef int	(*setfilter_op_t)(pcap_t *, struct bpf_program *);	
-	typedef int	(*setdirection_op_t)(pcap_t *, pcap_direction_t);	
-	typedef int	(*set_datalink_op_t)(pcap_t *, int);			
-	typedef int	(*getnonblock_op_t)(pcap_t *, char *);			
-	typedef int	(*setnonblock_op_t)(pcap_t *, int, char *);		
-	typedef int	(*stats_op_t)(pcap_t *, struct pcap_stat *);		
-	typedef void	(*cleanup_op_t)(pcap_t *);				
+	typedef int	(*inject_op_t)(pcap_t *, const void *, size_t);
+	typedef int	(*setfilter_op_t)(pcap_t *, struct bpf_program *);
+	typedef int	(*setdirection_op_t)(pcap_t *, pcap_direction_t);
+	typedef int	(*set_datalink_op_t)(pcap_t *, int);
+	typedef int	(*getnonblock_op_t)(pcap_t *, char *);
+	typedef int	(*setnonblock_op_t)(pcap_t *, int, char *);
+	typedef int	(*stats_op_t)(pcap_t *, struct pcap_stat *);
+	typedef void	(*cleanup_op_t)(pcap_t *);
 */
 
 
@@ -57,7 +57,7 @@ pcap_t *pfq_create(const char *device, char *ebuf)
 	p = pcap_create_common(device, ebuf);
 	if (p == NULL)
 		return NULL;
-	
+
 	p->activate_op = pfq_activate_linux;
 	return p;
 }
@@ -72,7 +72,7 @@ set_kernel_filter(pcap_t *handle, struct sock_fprog *fcode)
 	{
 		gid = atoi(opt);
 	}
-	
+
 	return pfq_group_fprog(handle->q_data.q, gid, fcode);
 }
 
@@ -86,7 +86,7 @@ reset_kernel_filter(pcap_t *handle)
 	{
 		gid = atoi(opt);
 	}
-	
+
 	return pfq_group_fprog_reset(handle->q_data.q, gid);
 }
 
@@ -235,7 +235,7 @@ static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 	struct sock_fprog	fcode;
 	int			can_filter_in_kernel;
 	int			err = 0;
-	
+
 	if (!handle)
 		return -1;
 	if (!filter) {
@@ -282,8 +282,8 @@ static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 		can_filter_in_kernel = 1;
 		break;
 	}
-	
-	if (can_filter_in_kernel) 
+
+	if (can_filter_in_kernel)
 	{
 		if ((err = set_kernel_filter(handle, &fcode)) == 0)
 		{
@@ -304,7 +304,7 @@ static int pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 			}
 		}
 	}
-	else 
+	else
 	{
 		printf("[PFQ] could not set BPF filter in kernel!\n");
 	}
@@ -362,25 +362,24 @@ static int pfq_activate_linux(pcap_t *handle)
 {
 	const char *device = NULL;
 	int queue  = Q_ANY_QUEUE;
-	int caplen = handle->snapshot; 
-	int slots  = 262144;
-	int offset = 0;
+	int caplen = handle->snapshot;
+	int slots  = 131072;
+	int slots_tx = 4096;
 	int status = 0;
 
-        const int max_caplen = 2048;
-	
+        const int max_caplen = 1514;
+
 	char *opt;
 
 	handle->linktype = DLT_EN10MB;
-	handle->offset = 0;
 
-	if (opt = getenv("PFQ_OFFSET"))
-	{
-		offset = handle->offset = atoi(opt);
-	}
-	if (opt = getenv("PFQ_SLOTS"))
+	if (opt = getenv("PFQ_RX_SLOTS"))
 	{
 		slots = atoi(opt);
+	}
+	if (opt = getenv("PFQ_TX_SLOTS"))
+	{
+		slots_tx = atoi(opt);
 	}
 	if (opt = getenv("PFQ_CAPLEN"))
 	{
@@ -391,7 +390,7 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	handle->read_op 		= pfq_read_linux;
 	handle->inject_op 		= pfq_inject_linux;
-	handle->setfilter_op 		= pfq_setfilter_linux; 
+	handle->setfilter_op 		= pfq_setfilter_linux;
 	handle->setdirection_op 	= pfq_setdirection_linux;
 	handle->getnonblock_op 		= pcap_getnonblock_fd;
 	handle->setnonblock_op 		= pcap_setnonblock_fd;
@@ -425,7 +424,7 @@ static int pfq_activate_linux(pcap_t *handle)
 	 * devices.
 	 */
 
-	if (strcmp(device, "any") == 0) { 
+	if (strcmp(device, "any") == 0) {
 
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 				"[PFQ] \"any\" device not supported (use pfq syntax: eth0:eth1:ethx...)");
@@ -442,7 +441,7 @@ static int pfq_activate_linux(pcap_t *handle)
 		int set_promisc(const char *dev)
 		{
 			struct ifreq ifr;
-			
+
 			memset(&ifr, 0, sizeof(ifr));
 			strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
 			if (ioctl(handle->fd, SIOCGIFFLAGS, &ifr) == -1) {
@@ -501,9 +500,9 @@ static int pfq_activate_linux(pcap_t *handle)
 			 pcap_strerror(errno) );
 		return PCAP_ERROR;
 	}
-	
+
 	/*
-	 * If we're in promiscuous mode, then we probably want 
+	 * If we're in promiscuous mode, then we probably want
 	 * to see when the interface drops packets too, so get an
 	 * initial count from /proc/net/dev
 	 */
@@ -519,44 +518,47 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_GROUP"))
 	{
-		int gid = atoi(opt);                      
-		
+		int gid = atoi(opt);
+
 		int bind_group(const char *dev)
 		{
                 	fprintf(stderr, "[PFQ] binding group %d on dev %s...\n", gid, dev);
-			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1) 
-			{	
+			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1)
+			{
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				return PCAP_ERROR;
 			}
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_nogroup(caplen, offset, slots);
+		handle->q_data.q = pfq_open_nogroup(caplen, slots);
 		if (handle->q_data.q == NULL)
-		{	
+		{
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 
                 fprintf(stderr, "[PFQ] capture group %d\n", gid);
 
-		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_GROUP_SHARED) < 0)
+		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED) < 0)
 		{
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
 
-		if (opt = getenv("PFQ_STEER"))
-		{
-                	fprintf(stderr, "[PFQ] function: %s\n", opt);
-			if (pfq_set_group_function(handle->q_data.q, gid, opt, 0) < 0)
-			{
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
-				goto fail;
-			}
-		}
-		
+		// TODO
+		//
+		// if (opt = getenv("PFQ_STEER"))
+		// {
+                // 	fprintf(stderr, "[PFQ] function: %s\n", opt);
+                //
+		// 	if (pfq_set_group_computation(handle->q_data.q, gid, opt, 0) < 0)
+		// 	{
+		// 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		// 		goto fail;
+		// 	}
+		// }
+
 		/* bind to device(es) */
 
 		if (pfq_for_each_token(device, ":", bind_group) < 0)
@@ -569,21 +571,21 @@ static int pfq_activate_linux(pcap_t *handle)
 		int bind_socket(const char *dev)
 		{
                 	fprintf(stderr, "[PFQ] binding dev %s...\n", dev);
-			if (pfq_bind(handle->q_data.q, dev, queue) == -1) 
-			{	
+			if (pfq_bind(handle->q_data.q, dev, queue) == -1)
+			{
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				return PCAP_ERROR;
 			}
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_GROUP_SHARED, caplen, offset, slots);
+		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED, caplen, slots, caplen, slots_tx);
 		if (handle->q_data.q == NULL)
-		{	
+		{
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
-		
+
 		/* bind to device(es) */
 
 		if (pfq_for_each_token(device, ":", bind_socket) < 0)
@@ -591,7 +593,7 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 	}
-	
+
 	/* set vlan filters */
 
 	if (opt = getenv("PFQ_VLAN_ID"))
@@ -604,7 +606,7 @@ static int pfq_activate_linux(pcap_t *handle)
                 }
 
 
-                if (pfq_vlan_filters_enabled(handle->q_data.q, gid, 1) < 0)
+                if (pfq_vlan_filters_enable(handle->q_data.q, gid, 1) < 0)
                 {
                 	fprintf(stderr, "[PFQ] group %d enabling vlan filters error!\n", gid);
                 	return PCAP_ERROR;
@@ -615,8 +617,8 @@ static int pfq_activate_linux(pcap_t *handle)
 		        int vid = atoi(vid_);
 
                 	fprintf(stderr, "[PFQ] group %d setting vlan filer id=%d\n", gid, vid);
-			if (pfq_vlan_set_filter(handle->q_data.q, gid, vid)  == -1) 
-			{	
+			if (pfq_vlan_set_filter(handle->q_data.q, gid, vid)  == -1)
+			{
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				return PCAP_ERROR;
 			}
@@ -631,7 +633,7 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	/* enable timestamping */
 
-	if (pfq_timestamp_enabled(handle->q_data.q, 1) == -1) 
+	if (pfq_timestamp_enable(handle->q_data.q, 1) == -1)
 	{
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		goto fail;
@@ -672,7 +674,7 @@ void pfq_cleanup_linux(pcap_t *handle)
 			return 0;
 
 		fprintf(stderr, "[PFQ] clear promisc on %s...\n", dev);
-		
+
 		memset(&ifr, 0, sizeof(ifr));
 		strncpy(ifr.ifr_name, dev,
 				sizeof(ifr.ifr_name));
@@ -710,7 +712,7 @@ void pfq_cleanup_linux(pcap_t *handle)
 	}
 
 	fprintf(stderr, "[PFQ] close socket...\n");
-	
+
 	if(handle->q_data.q) {
 		pfq_close(handle->q_data.q);
 		handle->q_data.q = NULL;
@@ -727,7 +729,7 @@ void pfq_cleanup_linux(pcap_t *handle)
 }
 
 
-static int 
+static int
 pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
 {
 	int n = max_packets;
@@ -746,22 +748,22 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		handle->q_data.current = pfq_net_queue_begin(&nq);
 		handle->q_data.end     = pfq_net_queue_end(&nq);
 	}
-	
+
 	it = handle->q_data.current;
 	it_end = handle->q_data.end;
 
 	for(; (max_packets <= 0 || n > 0) && (it != it_end); it = pfq_net_queue_next(&nq, it))
 	{
 		struct pcap_pkthdr pcap_h;
-		struct pfq_hdr *h;
+		struct pfq_pkt_hdr *h;
                 uint16_t vlan_tci;
 		const char *pkt;
 
 		while (!pfq_iterator_ready(&nq, it))
 			pfq_yield();
 
-		h = (struct pfq_hdr *)pfq_iterator_header(it);
-		
+		h = (struct pfq_pkt_hdr *)pfq_iterator_header(it);
+
 		pcap_h.ts.tv_sec  = h->tstamp.tv.sec;
 		pcap_h.ts.tv_usec = h->tstamp.tv.nsec / 1000;
 		pcap_h.caplen     = h->caplen;
@@ -772,16 +774,16 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		if ((vlan_tci = h->un.vlan_tci) != 0)
 		{
 			struct vlan_tag *tag;
-                	
+
 			pkt -= VLAN_TAG_LEN;
-			
+
 			memmove((char *)pkt, pkt + VLAN_TAG_LEN, 2 * ETH_ALEN);
-			
+
 			tag = (struct vlan_tag *)(pkt + 2 * ETH_ALEN);
 			tag->vlan_tpid = htons(ETH_P_8021Q);
 			tag->vlan_tci  = htons(vlan_tci);
 
-			pcap_h.len += VLAN_TAG_LEN; 
+			pcap_h.len += VLAN_TAG_LEN;
 		}
 
 		callback(user, &pcap_h, pkt);
@@ -789,8 +791,8 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		handle->md.packets_read++;
 		n--;
 	}
-	
-	if (handle->break_loop) 
+
+	if (handle->break_loop)
 	{
 		handle->break_loop = 0;
 		return PCAP_ERROR_BREAK;
@@ -811,15 +813,15 @@ static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
 	struct pfq_stats qstats;
-	
+
 	if(pfq_get_stats(handle->q_data.q, &qstats) < 0)
 	{
         	return -1;
 	}
-	
+
 	stat->ps_recv   = handle->md.packets_read;
 	stat->ps_drop   = 0;
-	stat->ps_ifdrop = (u_int) qstats.drop + (u_int) qstats.lost;	
+	stat->ps_ifdrop = (u_int) qstats.drop + (u_int) qstats.lost;
 
 	return 0;
 }
