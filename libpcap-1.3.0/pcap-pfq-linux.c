@@ -546,18 +546,16 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-		// TODO
-		//
-		// if (opt = getenv("PFQ_STEER"))
-		// {
-                // 	fprintf(stderr, "[PFQ] function: %s\n", opt);
-                //
-		// 	if (pfq_set_group_computation(handle->q_data.q, gid, opt, 0) < 0)
-		// 	{
-		// 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
-		// 		goto fail;
-		// 	}
-		// }
+		if (opt = getenv("PFQ_FUNCTION"))
+		{
+                	fprintf(stderr, "[PFQ] function: %s\n", opt);
+
+			if (pfq_set_group_computation_from_string(handle->q_data.q, gid, opt) < 0)
+			{
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+				goto fail;
+			}
+		}
 
 		/* bind to device(es) */
 
