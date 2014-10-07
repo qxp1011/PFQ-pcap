@@ -709,9 +709,8 @@ void pfq_cleanup_linux(pcap_t *handle)
 		pfq_for_each_token(handle->md.device, ":", clear_promisc);
 	}
 
-	fprintf(stderr, "[PFQ] close socket...\n");
-
 	if(handle->q_data.q) {
+		fprintf(stderr, "[PFQ] close socket...\n");
 		pfq_close(handle->q_data.q);
 		handle->q_data.q = NULL;
 	}
