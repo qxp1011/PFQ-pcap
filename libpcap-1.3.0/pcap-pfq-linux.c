@@ -68,10 +68,9 @@ set_kernel_filter(pcap_t *handle, struct sock_fprog *fcode)
 {
 	int gid = 0;
 	char *opt;
+
 	if (opt = getenv("PFQ_GROUP"))
-	{
 		gid = atoi(opt);
-	}
 
 	return pfq_group_fprog(handle->q_data.q, gid, fcode);
 }
@@ -82,10 +81,9 @@ reset_kernel_filter(pcap_t *handle)
 {
 	int gid = 0;
 	char *opt;
+
 	if (opt = getenv("PFQ_GROUP"))
-	{
 		gid = atoi(opt);
-	}
 
 	return pfq_group_fprog_reset(handle->q_data.q, gid);
 }
@@ -374,17 +372,13 @@ static int pfq_activate_linux(pcap_t *handle)
 	handle->linktype = DLT_EN10MB;
 
 	if (opt = getenv("PFQ_RX_SLOTS"))
-	{
 		slots = atoi(opt);
-	}
+
 	if (opt = getenv("PFQ_TX_SLOTS"))
-	{
 		slots_tx = atoi(opt);
-	}
+
 	if (opt = getenv("PFQ_CAPLEN"))
-	{
 		caplen = atoi(opt);
-	}
 
 	device = handle->opt.source;
 
@@ -533,7 +527,7 @@ static int pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-                fprintf(stderr, "[PFQ] capture group %d\n", gid);
+                fprintf(stderr, "[PFQ] group %d\n", gid);
 
 		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED) < 0)
 		{
