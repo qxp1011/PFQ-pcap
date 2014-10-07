@@ -421,15 +421,8 @@ static int pfq_activate_linux(pcap_t *handle)
 	/*
 	 * The "any" device is a special device which causes us not
 	 * to bind to a particular device and thus to look at all
-	 * devices.
+	 * devices of a given group.
 	 */
-
-	if (strcmp(device, "any") == 0) {
-
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-				"[PFQ] \"any\" device not supported (use pfq syntax: eth0:eth1:ethx...)");
-		return PCAP_ERROR;
-	}
 
 	/* handle promisc */
 
@@ -488,9 +481,11 @@ static int pfq_activate_linux(pcap_t *handle)
 			return 0;
 		}
 
-		if (pfq_for_each_token(device, ":", set_promisc) < 0)
-		{
-			return PCAP_ERROR;
+		if (strcmp(device, "any") != 0) {
+			if (pfq_for_each_token(device, ":", set_promisc) < 0)
+			{
+				return PCAP_ERROR;
+			}
 		}
 	}
 
@@ -559,9 +554,10 @@ static int pfq_activate_linux(pcap_t *handle)
 
 		/* bind to device(es) */
 
-		if (pfq_for_each_token(device, ":", bind_group) < 0)
-		{
-			goto fail;
+
+		if (strcmp(device, "any") != 0) {
+			if (pfq_for_each_token(device, ":", bind_group) < 0)
+				goto fail;
 		}
 	}
 	else
@@ -586,9 +582,9 @@ static int pfq_activate_linux(pcap_t *handle)
 
 		/* bind to device(es) */
 
-		if (pfq_for_each_token(device, ":", bind_socket) < 0)
-		{
-			goto fail;
+		if (strcmp(device, "any") != 0) {
+			if (pfq_for_each_token(device, ":", bind_socket) < 0)
+				goto fail;
 		}
 	}
 
@@ -706,7 +702,9 @@ void pfq_cleanup_linux(pcap_t *handle)
 
 	if (handle->md.must_do_on_close & MUST_CLEAR_PROMISC) {
 
-		pfq_for_each_token(handle->md.device, ":", clear_promisc);
+		if (strcmp(handle->md.device, "any") != 0) {
+			pfq_for_each_token(handle->md.device, ":", clear_promisc);
+		}
 	}
 
 	if(handle->q_data.q) {
