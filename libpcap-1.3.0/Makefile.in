@@ -481,7 +481,7 @@ version.h: $(srcdir)/VERSION
 		date +_%Y_%m_%d; \
 	else \
 		cat ${srcdir}/VERSION; \
-	fi | sed -e 's/.*/static const char pcap_version_string[] = "libpcap version &";/' > $@
+	fi | sed -e 's/.*/static const char pcap_version_string[] = "libpcap+PFQ version &";/' > $@
 
 bpf_filter.c: $(srcdir)/bpf/net/bpf_filter.c
 	rm -f bpf_filter.c
@@ -717,7 +717,7 @@ packaging/pcap.spec: packaging/pcap.spec.in VERSION
 	RPMVERSION=`cat VERSION | sed s/-.*//g`; \
 		sed -e s/@VERSION@/$$RPMVERSION/ -e s/@NAME@/libpcap-`cat VERSION`/ $<   > $@
 
-releasetar: 
+releasetar:
 	@cwd=`pwd` ; dir=`basename $$cwd` ; name=$(PROG)-`cat VERSION` ; \
 	   mkdir $$name; \
 	   tar cf - $(CSRC) $(HDR) $(MAN1) $(MAN3PCAP_EXPAND) \
