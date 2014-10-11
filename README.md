@@ -18,7 +18,7 @@ to the library as environment variables, while sniffing from multiple devices is
 by specifying their name in colon-separated fashion.
 
 The greatest benefits are achieved with the cooperation of pfqd, a user-space daemon used
-to manage in-kernel computation.
+to manage groups and in-kernel computations.
 
 
 Features
@@ -26,7 +26,7 @@ Features
 
 * 10-Gbit Line-rate (14,8Mpps) with tcpdump.
 * Parallel session of legacy applications through Q-lang computations.
-* Socket groups allow for concurrent monitoring of multi-threaded pcap applications.
+* Socket groups allow for concurrent monitoring of multiple multi-threaded pcap applications.
 * Fully compliant with Q-Lang and pfqd.
 
 Authors
@@ -39,8 +39,7 @@ Giacomo Volpi <volpi.gia@gmail.com>
 HomePages
 ---------
 
-PFQ home-page is [www.pfq.io][1]. Additional information are available at [netgroup/pfq][2].
+PFQ home-page is [www.pfq.io][1]. 
 
 
 [1]: http://www.pfq.io
-[2]: http://netgroup.iet.unipi.it/software/pfq/
