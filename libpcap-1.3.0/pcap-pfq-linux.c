@@ -811,8 +811,8 @@ static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 	}
 
 	stat->ps_recv   = handle->md.packets_read;
-	stat->ps_drop   = 0;
-	stat->ps_ifdrop = (u_int) qstats.drop + (u_int) qstats.lost;
+	stat->ps_drop   = (u_int) qstats.drop + (u_int) qstats.lost;
+	stat->ps_ifdrop = 0;
 
 	return 0;
 }
