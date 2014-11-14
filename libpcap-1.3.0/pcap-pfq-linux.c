@@ -553,7 +553,7 @@ static int pfq_activate_linux(pcap_t *handle)
 
         if (caplen > max_caplen)
         {
-                fprintf(stderr, "[PFQ] capture length too large (%d) -> %d forced!\n", caplen, max_caplen);
+                fprintf(stderr, "[PFQ] capture length forced to %d\n", max_caplen);
                 caplen = max_caplen;
         }
 
