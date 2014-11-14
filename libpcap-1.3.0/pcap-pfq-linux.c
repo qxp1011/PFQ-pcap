@@ -355,6 +355,58 @@ int pfq_for_each_token(const char *ds, const char *sep, pfq_token_handler_t hand
 	return ret;
 }
 
+static long int
+linux_if_drops(const char * if_name)
+{
+	char buffer[512];
+	char * bufptr;
+	FILE * file;
+	int field_to_convert = 3, if_name_sz = strlen(if_name);
+	long int dropped_pkts = 0;
+
+	file = fopen("/proc/net/dev", "r");
+	if (!file)
+		return 0;
+
+	while (!dropped_pkts && fgets( buffer, sizeof(buffer), file ))
+	{
+		/* 	search for 'bytes' -- if its in there, then
+			that means we need to grab the fourth field. otherwise
+			grab the third field. */
+		if (field_to_convert != 4 && strstr(buffer, "bytes"))
+		{
+			field_to_convert = 4;
+			continue;
+		}
+
+		/* find iface and make sure it actually matches -- space before the name and : after it */
+		if ((bufptr = strstr(buffer, if_name)) &&
+			(bufptr == buffer || *(bufptr-1) == ' ') &&
+			*(bufptr + if_name_sz) == ':')
+		{
+			bufptr = bufptr + if_name_sz + 1;
+
+			/* grab the nth field from it */
+			while( --field_to_convert && *bufptr != '\0')
+			{
+				while (*bufptr != '\0' && *(bufptr++) == ' ');
+				while (*bufptr != '\0' && *(bufptr++) != ' ');
+			}
+
+			/* get rid of any final spaces */
+			while (*bufptr != '\0' && *bufptr == ' ') bufptr++;
+
+			if (*bufptr != '\0')
+				dropped_pkts = strtol(bufptr, NULL, 10);
+
+			break;
+		}
+	}
+
+	fclose(file);
+	return dropped_pkts;
+}
+
 
 static int pfq_activate_linux(pcap_t *handle)
 {
@@ -496,8 +548,8 @@ static int pfq_activate_linux(pcap_t *handle)
 	 * initial count from /proc/net/dev
 	 */
 
-	// if (handle->opt.promisc)
-	//	handle->md.proc_dropped = linux_if_drops(handle->md.device);
+	if (handle->opt.promisc)
+		handle->md.proc_dropped = linux_if_drops(handle->md.device);
 
         if (caplen > max_caplen)
         {
@@ -804,15 +856,23 @@ static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
 	struct pfq_stats qstats;
+	long if_dropped = 0;
 
 	if(pfq_get_stats(handle->q_data.q, &qstats) < 0)
 	{
         	return -1;
 	}
 
+	if (handle->opt.promisc)
+	{
+		if_dropped = handle->md.proc_dropped;
+		handle->md.proc_dropped = linux_if_drops(handle->md.device);
+		handle->md.stat.ps_ifdrop += (handle->md.proc_dropped - if_dropped);
+	}
+
 	stat->ps_recv   = handle->md.packets_read;
 	stat->ps_drop   = (u_int) qstats.drop + (u_int) qstats.lost;
-	stat->ps_ifdrop = 0;
+	stat->ps_ifdrop = handle->md.stat.ps_ifdrop;
 
 	return 0;
 }
