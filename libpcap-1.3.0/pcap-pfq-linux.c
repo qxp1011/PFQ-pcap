@@ -635,7 +635,9 @@ static int pfq_activate_linux(pcap_t *handle)
 		goto fail;
 	}
 
-	handle->selectable_fd = pfq_get_fd(handle->q_data.q);
+	/* handle->selectable_fd = pfq_get_fd(handle->q_data.q); */
+
+	handle->selectable_fd = -1;
 	return 0;
 
 fail:
