@@ -459,7 +459,7 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/caplen > slots)
         	slots = handle->opt.buffer_size/caplen;
 
-        fprintf(stderr, "[PFQ] activate: buffer_size = %d caplen = %d,  slots = %d\n", handle->opt.buffer_size, caplen, slots);
+        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d,  slots = %d\n", handle->opt.buffer_size, caplen, slots);
 
 	device = handle->opt.source;
 
@@ -601,7 +601,7 @@ pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-                fprintf(stderr, "[PFQ] group %d\n", gid);
+                fprintf(stderr, "[PFQ] group = %d\n", gid);
 
 		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED) < 0) {
 
