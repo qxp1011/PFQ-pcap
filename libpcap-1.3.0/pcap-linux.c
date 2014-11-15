@@ -452,7 +452,7 @@ pcap_create(const char *device, char *ebuf)
 #endif
 
 #ifdef PCAP_SUPPORT_PFQ
-	if (strstr(device, ":"))
+	if (getenv("PFQ_GROUP") || strstr(device, ":"))
 		return pfq_create(device, ebuf);
 #endif
 
