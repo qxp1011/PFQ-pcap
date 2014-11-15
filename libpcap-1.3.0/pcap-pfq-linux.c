@@ -411,13 +411,13 @@ linux_if_drops(const char * if_name)
 static int pfq_activate_linux(pcap_t *handle)
 {
 	const char *device = NULL;
-	int queue  = Q_ANY_QUEUE;
-	int caplen = handle->snapshot;
-	int slots  = 131072;
-	int slots_tx = 4096;
-	int status = 0;
-
         const int max_caplen = 1514;
+
+	int queue    = Q_ANY_QUEUE;
+	int caplen   = handle->snapshot;
+	int slots    = 65536;
+	int slots_tx = 8192;
+	int status   = 0;
 
 	char *opt;
 
@@ -431,6 +431,16 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_CAPLEN"))
 		caplen = atoi(opt);
+
+        if (caplen > max_caplen) {
+                fprintf(stderr, "[PFQ] capture length forced to %d\n", max_caplen);
+                caplen = max_caplen;
+        }
+
+	if (handle->opt.buffer_size/caplen > slots)
+        	slots = handle->opt.buffer_size/caplen;
+
+        fprintf(stderr, "[PFQ] activate: buffer_size = %d caplen = %d,  slots = %d\n", handle->opt.buffer_size, caplen, slots);
 
 	device = handle->opt.source;
 
@@ -550,12 +560,6 @@ static int pfq_activate_linux(pcap_t *handle)
 
 	if (handle->opt.promisc)
 		handle->md.proc_dropped = linux_if_drops(handle->md.device);
-
-        if (caplen > max_caplen)
-        {
-                fprintf(stderr, "[PFQ] capture length forced to %d\n", max_caplen);
-                caplen = max_caplen;
-        }
 
 	if (opt = getenv("PFQ_GROUP"))
 	{
