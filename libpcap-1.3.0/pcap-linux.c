@@ -451,11 +451,11 @@ pcap_create(const char *device, char *ebuf)
 	}
 #endif
 
-
 #ifdef PCAP_SUPPORT_PFQ
-	return pfq_create(device, ebuf);
+	if (strstr(device, ":"))
+		return pfq_create(device, ebuf);
 #endif
-	
+
 	handle = pcap_create_common(device, ebuf);
 	if (handle == NULL)
 		return NULL;
