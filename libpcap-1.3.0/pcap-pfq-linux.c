@@ -434,7 +434,7 @@ pfq_activate_linux(pcap_t *handle)
 
 	int queue    = Q_ANY_QUEUE;
 	int caplen   = handle->snapshot;
-	int slots    = 65536;
+	int slots    = 131072;
 	int slots_tx = 8192;
 	int status   = 0;
 
