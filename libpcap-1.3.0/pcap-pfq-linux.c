@@ -459,7 +459,7 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/caplen > slots)
         	slots = handle->opt.buffer_size/caplen;
 
-        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d,  slots = %d\n", handle->opt.buffer_size, caplen, slots);
+        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d\n", handle->opt.buffer_size, caplen, slots);
 
 	device = handle->opt.source;
 
@@ -791,25 +791,25 @@ void pfq_cleanup_linux(pcap_t *handle)
 static int
 pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
 {
-	int n = max_packets;
-	struct pfq_net_queue nq;
         int start = handle->md.packets_read;
+	struct pfq_net_queue nq;
+	int n = max_packets;
 
 	pfq_iterator_t it, it_end;
 
-        if (handle->q_data.current == handle->q_data.end) {
+	it =  handle->q_data.current;
+	it_end = handle->q_data.end;
 
-        	if (pfq_read(handle->q_data.q, &nq, handle->md.timeout > 0 ? handle->md.timeout * 1000 : 10000) < 0) {
+        if (it == it_end) {
+
+        	if (pfq_read(handle->q_data.q, &nq, handle->md.timeout > 0 ? handle->md.timeout * 1000 : 1000000) < 0) {
 			snprintf(handle->errbuf, sizeof(handle->errbuf), "PFQ read error");
 			return PCAP_ERROR;
 		}
 
-		handle->q_data.current = pfq_net_queue_begin(&nq);
-		handle->q_data.end     = pfq_net_queue_end(&nq);
+		it = handle->q_data.current = pfq_net_queue_begin(&nq);
+	        it_end = handle->q_data.end = pfq_net_queue_end(&nq);
 	}
-
-	it = handle->q_data.current;
-	it_end = handle->q_data.end;
 
 	for(; (max_packets <= 0 || n > 0) && (it != it_end); it = pfq_net_queue_next(&nq, it))
 	{
