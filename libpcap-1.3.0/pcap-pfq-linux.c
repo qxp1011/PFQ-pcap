@@ -715,14 +715,16 @@ fail:
 }
 
 
-static int pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
+static int
+pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
 	snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported");
 	return PCAP_ERROR;
 }
 
 
-void pfq_cleanup_linux(pcap_t *handle)
+static void
+pfq_cleanup_linux(pcap_t *handle)
 {
 	int n = 0;
 	int clear_promisc(const char *dev)
@@ -863,14 +865,16 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 }
 
 
-static int pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
+static int
+pfq_setdirection_linux(pcap_t *handle, pcap_direction_t d)
 {
 	snprintf(handle->errbuf, sizeof(handle->errbuf), "Setting direction is not supported with PFQ enabled");
 	return PCAP_ERROR;
 }
 
 
-static int pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
+static int
+pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 {
 	struct pfq_stats qstats;
 	long if_dropped = 0;
