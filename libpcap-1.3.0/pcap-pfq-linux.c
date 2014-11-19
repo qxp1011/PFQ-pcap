@@ -374,6 +374,22 @@ string_for_each_token(const char *ds, const char *sep, pfq_token_handler_t handl
 	return ret;
 }
 
+
+static char *
+string_first_token(const char *ds, const char *sep)
+{
+	char *end;
+	if ((end = strstr(ds, sep))) {
+        	char *ret = malloc(end - ds + 1);
+        	strncpy(ret, ds, end - ds);
+        	*end = '\0';
+        	return ret;
+	}
+
+	return strdup(ds);
+}
+
+
 static long int
 linux_if_drops(const char * if_name)
 {
