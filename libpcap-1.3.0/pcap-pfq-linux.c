@@ -352,7 +352,8 @@ pfq_setfilter_linux(pcap_t *handle, struct bpf_program *filter)
 
 typedef int (*pfq_token_handler_t)(const char *);
 
-int pfq_for_each_token(const char *ds, const char *sep, pfq_token_handler_t handler)
+static int
+string_for_each_token(const char *ds, const char *sep, pfq_token_handler_t handler)
 {
         char * mutable = strdup(ds);
         char *str, *token, *saveptr;
@@ -558,7 +559,7 @@ pfq_activate_linux(pcap_t *handle)
 
 		if (strcmp(device, "any") != 0) {
 
-			if (pfq_for_each_token(device, ":", set_promisc) < 0)
+			if (string_for_each_token(device, ":", set_promisc) < 0)
 				return PCAP_ERROR;
 		}
 	}
@@ -623,7 +624,7 @@ pfq_activate_linux(pcap_t *handle)
 		/* bind to device(es) */
 
 		if (strcmp(device, "any") != 0) {
-			if (pfq_for_each_token(device, ":", bind_group) < 0)
+			if (string_for_each_token(device, ":", bind_group) < 0)
 				goto fail;
 		}
 	}
@@ -650,7 +651,7 @@ pfq_activate_linux(pcap_t *handle)
 		/* bind to device(es) */
 
 		if (strcmp(device, "any") != 0) {
-			if (pfq_for_each_token(device, ":", bind_socket) < 0)
+			if (string_for_each_token(device, ":", bind_socket) < 0)
 				goto fail;
 		}
 	}
@@ -685,7 +686,7 @@ pfq_activate_linux(pcap_t *handle)
 			return 0;
 		}
 
-		if (pfq_for_each_token(opt, ",", set_vlan_filter) < 0)
+		if (string_for_each_token(opt, ",", set_vlan_filter) < 0)
                         goto fail;
         }
 
@@ -767,7 +768,7 @@ void pfq_cleanup_linux(pcap_t *handle)
 	if (handle->md.must_do_on_close & MUST_CLEAR_PROMISC) {
 
 		if (strcmp(handle->md.device, "any") != 0) {
-			pfq_for_each_token(handle->md.device, ":", clear_promisc);
+			string_for_each_token(handle->md.device, ":", clear_promisc);
 		}
 	}
 
