@@ -640,7 +640,8 @@ pfq_activate_linux(pcap_t *handle)
 	{
 		int bind_socket(const char *dev)
 		{
-                	fprintf(stderr, "[PFQ] binding dev %s...\n", dev);
+                	fprintf(stderr, "[PFQ] binding socket on dev %s...\n", dev);
+
 			if (pfq_bind(handle->q_data.q, dev, queue) == -1) {
 
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
@@ -705,8 +706,8 @@ pfq_activate_linux(pcap_t *handle)
 
                 if (pfq_vlan_filters_enable(handle->q_data.q, gid, 1) < 0) {
 
-                	fprintf(stderr, "[PFQ] group %d enabling vlan filters error!\n", gid);
-                	return PCAP_ERROR;
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+                	goto fail;
                 }
 
 		int set_vlan_filter(const char *vid_)
@@ -714,6 +715,7 @@ pfq_activate_linux(pcap_t *handle)
 		        int vid = atoi(vid_);
 
                 	fprintf(stderr, "[PFQ] group %d setting vlan filer id=%d\n", gid, vid);
+
 			if (pfq_vlan_set_filter(handle->q_data.q, gid, vid)  == -1) {
 
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
