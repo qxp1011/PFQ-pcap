@@ -493,6 +493,7 @@ pfq_activate_linux(pcap_t *handle)
 	handle->set_datalink_op 	= NULL;	/* can't change data link type */
 
 	handle->q_data.cleanup 		= 0;
+        handle->q_data.tx_async 	= Q_TX_ASYNC_DEFERRED;
 
 	handle->fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (handle->fd == -1) {
@@ -755,6 +756,8 @@ pfq_activate_linux(pcap_t *handle)
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 			goto fail;
 		}
+
+		handle->q_data.tx_async = Q_TX_ASYNC_THREADED;
 	}
 
 	/* handle->selectable_fd = pfq_get_fd(handle->q_data.q); */
@@ -771,8 +774,10 @@ fail:
 static int
 pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
-	snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported");
-	return PCAP_ERROR;
+	if (pfq_send_async(handle->q_data.q, buf, size, 64, handle->q_data.tx_async) == -1)
+		return PCAP_ERROR;
+
+	return 0;
 }
 
 
