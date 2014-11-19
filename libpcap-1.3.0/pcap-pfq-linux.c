@@ -614,7 +614,7 @@ pfq_activate_linux(pcap_t *handle)
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_nogroup(caplen, slots);
+		handle->q_data.q = pfq_open_nogroup_(caplen, slots, caplen, tx_slots);
 		if (handle->q_data.q == NULL) {
 
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
