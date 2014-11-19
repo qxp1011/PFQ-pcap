@@ -629,17 +629,6 @@ pfq_activate_linux(pcap_t *handle)
 			goto fail;
 		}
 
-		if (opt = getenv("PFQ_FUNCTION")) {
-
-                	fprintf(stderr, "[PFQ] function: %s\n", opt);
-
-			if (pfq_set_group_computation_from_string(handle->q_data.q, gid, opt) < 0) {
-
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
-				goto fail;
-			}
-		}
-
 		/* bind to device(es) */
 
 		if (strcmp(device, "any") != 0) {
@@ -675,16 +664,44 @@ pfq_activate_linux(pcap_t *handle)
 		}
 	}
 
+        gid = pfq_group_id(handle->q_data.q);
+	if (gid == -1) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		goto fail;
+	}
+
+	/* bind TX to device/queue */
+
+	if ((first_dev = string_first_token(device, ":"))) {
+
+        	fprintf(stderr, "[PFQ] binding tx on %s, txq %d.\n", first_dev, txq);
+
+		if (pfq_bind_tx(handle->q_data.q, first_dev, txq) < 0) {
+
+			free(first_dev);
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			goto fail;
+		}
+
+		free(first_dev);
+	}
+
+	/* set FUNCTION/computation */
+
+	if (opt = getenv("PFQ_FUNCTION")) {
+
+        	fprintf(stderr, "[PFQ] function: %s\n", opt);
+
+		if (pfq_set_group_computation_from_string(handle->q_data.q, gid, opt) < 0) {
+
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			goto fail;
+		}
+	}
+
 	/* set vlan filters */
 
 	if (opt = getenv("PFQ_VLAN_ID")) {
-
-                int gid = pfq_group_id(handle->q_data.q);
-
-                if (gid == -1) {
-                	fprintf(stderr, "[PFQ] group %d error!\n", gid);
-                	return PCAP_ERROR;
-                }
 
                 if (pfq_vlan_filters_enable(handle->q_data.q, gid, 1) < 0) {
 
@@ -721,6 +738,21 @@ pfq_activate_linux(pcap_t *handle)
 	if (pfq_enable(handle->q_data.q) == -1) {
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		goto fail;
+	}
+
+	/* start TX thread, if specified */
+
+	if (opt = getenv("PFQ_TX_THREAD"))
+	{
+		int node = atoi(opt);
+
+        	fprintf(stderr, "[PFQ] starting tx thread on %d node...\n", node);
+
+         	if (pfq_start_tx_thread(handle->q_data.q, node) < 0) {
+
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			goto fail;
+		}
 	}
 
 	/* handle->selectable_fd = pfq_get_fd(handle->q_data.q); */
