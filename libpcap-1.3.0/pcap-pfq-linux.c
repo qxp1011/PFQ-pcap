@@ -452,21 +452,23 @@ pfq_activate_linux(pcap_t *handle)
 	int queue    = Q_ANY_QUEUE;
 	int caplen   = handle->snapshot;
 	int slots    = 131072;
-	int slots_tx = 8192;
+	int tx_slots = 8192;
 	int status   = 0;
+	int txq	     = -1;
+        int gid      = -1;
 
-	char *opt;
+	char *first_dev, *opt;
 
 	handle->linktype = DLT_EN10MB;
 
 	if (opt = getenv("PFQ_RX_SLOTS"))
 		slots = atoi(opt);
-
 	if (opt = getenv("PFQ_TX_SLOTS"))
-		slots_tx = atoi(opt);
-
+		tx_slots = atoi(opt);
 	if (opt = getenv("PFQ_CAPLEN"))
 		caplen = atoi(opt);
+	if (opt = getenv("PFQ_TX_QUEUE"))
+		txq = atoi(opt);
 
         if (caplen > max_caplen) {
                 fprintf(stderr, "[PFQ] capture length forced to %d\n", max_caplen);
@@ -476,7 +478,7 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/caplen > slots)
         	slots = handle->opt.buffer_size/caplen;
 
-        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d\n", handle->opt.buffer_size, caplen, slots);
+        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d, tx_slots = %d\n", handle->opt.buffer_size, caplen, slots, tx_slots);
 
 	device = handle->opt.source;
 
@@ -598,11 +600,12 @@ pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_GROUP")) {
 
-		int gid = atoi(opt);
+		gid = atoi(opt);
 
 		int bind_group(const char *dev)
 		{
                 	fprintf(stderr, "[PFQ] binding group %d on dev %s...\n", gid, dev);
+
 			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1) {
 
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
@@ -657,7 +660,7 @@ pfq_activate_linux(pcap_t *handle)
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED, caplen, slots, caplen, slots_tx);
+		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED, caplen, slots, caplen, tx_slots);
 		if (handle->q_data.q == NULL) {
 
 			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
