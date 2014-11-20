@@ -778,9 +778,17 @@ fail:
 static int
 pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
-	int ret = pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async);
-	if (ret == -1)
+	int ret;
+
+	if (handle->q_data.tx_batch == 1)
+		ret = pfq_send(handle->q_data.q, buf, size);
+	else
+		ret = pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async);
+
+	if (ret == -1) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 		return PCAP_ERROR;
+	}
 	return ret;
 }
 
