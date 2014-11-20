@@ -778,10 +778,10 @@ fail:
 static int
 pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
-	if (pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async) == -1)
+	int ret = pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async);
+	if (ret == -1)
 		return PCAP_ERROR;
-
-	return 0;
+	return ret;
 }
 
 
