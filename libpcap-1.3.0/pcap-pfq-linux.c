@@ -456,6 +456,7 @@ pfq_activate_linux(pcap_t *handle)
 	int status   = 0;
 	int txq	     = -1;
         int gid      = -1;
+	int batch    = 1;
 
 	char *first_dev, *opt;
 
@@ -469,6 +470,8 @@ pfq_activate_linux(pcap_t *handle)
 		caplen = atoi(opt);
 	if (opt = getenv("PFQ_TX_QUEUE"))
 		txq = atoi(opt);
+	if (opt = getenv("PFQ_TX_BATCH"))
+		batch = atoi(opt);
 
         if (caplen > max_caplen) {
                 fprintf(stderr, "[PFQ] capture length forced to %d\n", max_caplen);
@@ -478,7 +481,7 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/caplen > slots)
         	slots = handle->opt.buffer_size/caplen;
 
-        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d, tx_slots = %d\n", handle->opt.buffer_size, caplen, slots, tx_slots);
+        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d, tx_slots = %d, tx_batch = %d\n", handle->opt.buffer_size, caplen, slots, tx_slots, batch);
 
 	device = handle->opt.source;
 
@@ -494,6 +497,7 @@ pfq_activate_linux(pcap_t *handle)
 
 	handle->q_data.cleanup 		= 0;
         handle->q_data.tx_async 	= Q_TX_ASYNC_DEFERRED;
+	handle->q_data.tx_batch 	= batch;
 
 	handle->fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (handle->fd == -1) {
@@ -774,7 +778,7 @@ fail:
 static int
 pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
-	if (pfq_send_async(handle->q_data.q, buf, size, 64, handle->q_data.tx_async) == -1)
+	if (pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async) == -1)
 		return PCAP_ERROR;
 
 	return 0;

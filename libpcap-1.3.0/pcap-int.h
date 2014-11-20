@@ -257,6 +257,7 @@ struct pcap {
         pfq_iterator_t 	end;
         uint64_t        cleanup;
         int 		tx_async;
+        int 		tx_batch;
     } q_data;
 #endif
 
