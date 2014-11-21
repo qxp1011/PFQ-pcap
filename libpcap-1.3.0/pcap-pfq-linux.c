@@ -384,6 +384,21 @@ string_first_token(const char *ds, const char *sep)
 }
 
 
+static char *
+string_trim(char *str)
+{
+	int i = 0, j = strlen (str) - 1;
+
+	while (isspace(str[i]) && str[i] != '\0')
+		i++;
+	while (isspace(str[j]) && j >= 0)
+		j--;
+
+	str[j+1] = '\0';
+	return str+i;
+}
+
+
 static long int
 linux_if_drops(const char * if_name)
 {
