@@ -455,16 +455,24 @@ pfq_getenv(pcap_t *handle)
 		.comp     = NULL
 	};
 
-	if (opt = getenv("PFQ_RX_SLOTS"))
+	if ((opt = getenv("PFQ_GROUP")))
+		rc.group = atoi(opt);
+	if ((opt = getenv("PFQ_CAPLEN")))
+		rc.group = atoi(opt);
+	if ((opt = getenv("PFQ_RX_SLOTS")))
 		rc.rx_slots = atoi(opt);
-	if (opt = getenv("PFQ_TX_SLOTS"))
+	if ((opt = getenv("PFQ_TX_SLOTS")))
 		rc.tx_slots = atoi(opt);
-	if (opt = getenv("PFQ_CAPLEN"))
-		rc.caplen = atoi(opt);
-	if (opt = getenv("PFQ_TX_QUEUE"))
+	if ((opt = getenv("PFQ_TX_QUEUE")))
 		rc.tx_queue = atoi(opt);
-	if (opt = getenv("PFQ_TX_BATCH"))
+	if ((opt = getenv("PFQ_TX_BATCH")))
 		rc.tx_batch = atoi(opt);
+	if ((opt = getenv("PFQ_TX_NODE")))
+		rc.tx_node = atoi(opt);
+	if ((opt = getenv("PFQ_VLAN")))
+		rc.vlan = opt;
+	if ((opt = getenv("PFQ_COMPUTATION")))
+		rc.comp = opt;
 
 	return rc;
 }
