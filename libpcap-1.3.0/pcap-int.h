@@ -156,14 +156,14 @@ struct pcap_md {
 #endif /* linux */
 
 #ifdef PCAP_SUPPORT_PFQ
-    struct pfq_pcap_data
+    struct pfq_data
     {
         pfq_t          *q;
         pfq_iterator_t 	current;
         pfq_iterator_t 	end;
         uint64_t        ifs_promisc;
         int 		tx_async;
-        int 		tx_batch;
+
     } pfq;
 #endif
 
@@ -227,6 +227,24 @@ struct pcap_opt {
 	int	promisc;
 	int	rfmon;
 	int	tstamp_type;
+
+#ifdef PCAP_SUPPORT_PFQ
+	struct pfq_opt
+	{
+		int group;
+		int caplen;
+
+		int rx_slots;
+		int tx_slots;
+
+		int tx_queue;
+		int tx_batch;
+		int tx_node;
+
+		const char *vlan;
+		const char *comp;
+	} pfq;
+#endif
 };
 
 /*
