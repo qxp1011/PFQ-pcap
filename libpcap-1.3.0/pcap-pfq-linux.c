@@ -737,7 +737,7 @@ pfq_activate_linux(pcap_t *handle)
 
 		if (strcmp(device, "any") != 0) {
 			if (string_for_each_token(device, ":", set_promisc) < 0) {
-				return PCAP_ERROR;
+				goto fail;
 			}
 		}
 	}
@@ -746,7 +746,7 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->md.device == NULL) {
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "strdup: %s",
 			 pcap_strerror(errno) );
-		return PCAP_ERROR;
+		goto fail;
 	}
 
 	/*
