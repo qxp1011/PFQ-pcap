@@ -496,9 +496,9 @@ static char *
 pfq_parse_filename(const char *device)
 {
 	char *str;
-	if (strncmp(device, "pfq/", 4) != 0)
+	if (*device != '/')
 		return NULL;
-	str = strdup(device+4);
+	str = strdup(device+1);
 	return strtok(str, ":");
 }
 
@@ -607,9 +607,9 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/handle->opt.pfq.caplen > handle->opt.pfq.rx_slots)
         	handle->opt.pfq.rx_slots = handle->opt.buffer_size/handle->opt.pfq.caplen;
 
-	device = handle->opt.source;
+	device = handle->opt.source + 3;
 
-	if (strncmp(device, "pfq/", 4) == 0) {
+	if (*device == '/') {
 
 		char * colon, *config;
 
