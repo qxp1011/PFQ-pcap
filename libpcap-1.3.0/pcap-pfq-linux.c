@@ -492,6 +492,88 @@ pfq_getenv(pcap_t *handle)
 	return rc;
 }
 
+static int
+pfq_parse_opt(struct pfq_opt *opt, const char *filename)
+{
+	char line[256];
+	FILE *file;
+	int rc = 0;
+
+	file = fopen(filename, "r");
+	if (!file) {
+		fprintf(stderr, "[PFQ] could not open '%s' file!\n", filename);
+		rc = -1; goto err;
+	}
+
+	while (fgets(line, sizeof(line), file)) {
+
+		char *key = NULL, *value = NULL;
+		int n = sscanf(line, "%m[^=]=%m[ \ta-z0-9=>_,-]",&key, &value);
+
+		switch(n) {
+		case 1: {
+			if (strlen(string_trim(key))) {
+				fprintf(stderr, "[PFQ] parse error at: %s\n", key);
+				rc = -1;
+			}
+		} break;
+
+		case 2: {
+
+			char *tkey = string_trim(key);
+
+			if (strcasecmp(tkey, "group") == 0) {
+				opt->group = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "caplen") == 0) {
+				opt->caplen = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "rx_slots") == 0) {
+				opt->rx_slots = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "tx_slots") == 0) {
+				opt->tx_slots = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "tx_queue") == 0) {
+				opt->tx_queue = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "tx_node") == 0) {
+				opt->tx_node = atoi(value);
+			}
+			else
+			if (strcasecmp(tkey, "vlan") == 0) {
+				opt->vlan = strdup(string_trim(value));
+			}
+			else
+			if (strcasecmp(tkey, "computation") == 0) {
+				opt->comp = strdup(string_trim(value));
+			}
+			else {
+				fprintf(stderr, "[PFQ] error: unknown keyword: '%s'\n", key);
+				rc = -1;
+			}
+
+		} break;
+
+		}
+
+		free(key);
+		free(value);
+
+		if (rc == -1)
+			break;
+	}
+
+	fclose(file);
+err:
+	return rc;
+}
+
 
 static int
 pfq_activate_linux(pcap_t *handle)
