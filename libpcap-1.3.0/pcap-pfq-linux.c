@@ -364,7 +364,7 @@ string_for_each_token(const char *ds, const char *sep, pfq_token_handler_t handl
                 token = strtok_r(str, sep, &saveptr);
                 if (token == NULL)
                         break;
-                if (handler(token) <0) {
+                if (handler(token) < 0) {
 		        ret = PCAP_ERROR;
 			break;
 		}
@@ -587,9 +587,9 @@ pfq_activate_linux(pcap_t *handle)
 		}
 
 		if (strcmp(device, "any") != 0) {
-
-			if (string_for_each_token(device, ":", set_promisc) < 0)
+			if (string_for_each_token(device, ":", set_promisc) < 0) {
 				return PCAP_ERROR;
+			}
 		}
 	}
 
@@ -618,7 +618,6 @@ pfq_activate_linux(pcap_t *handle)
                 	fprintf(stderr, "[PFQ] binding group %d on dev %s...\n", gid, dev);
 
 			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1) {
-
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				return PCAP_ERROR;
 			}
@@ -654,7 +653,6 @@ pfq_activate_linux(pcap_t *handle)
                 	fprintf(stderr, "[PFQ] binding socket on dev %s...\n", dev);
 
 			if (pfq_bind(handle->q_data.q, dev, queue) == -1) {
-
 				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
 				return PCAP_ERROR;
 			}
