@@ -379,12 +379,18 @@ static char *
 string_first_token(const char *ds, const char *sep)
 {
 	char *end;
+
+	if (*ds == ':')
+		ds++;
 	if ((end = strstr(ds, sep))) {
         	char *ret = malloc(end - ds + 1);
         	strncpy(ret, ds, end - ds);
-        	*end = '\0';
-        	return ret;
+         	ret[end - ds] = '\0';
+         	return ret;
 	}
+
+	if (*ds == '\0')
+		return NULL;
 
 	return strdup(ds);
 }
