@@ -91,7 +91,7 @@ set_kernel_filter(pcap_t *handle, struct sock_fprog *fcode)
 	if (opt = getenv("PFQ_GROUP"))
 		gid = atoi(opt);
 
-	return pfq_group_fprog(handle->q_data.q, gid, fcode);
+	return pfq_group_fprog(handle->md.pfq.q, gid, fcode);
 }
 
 
@@ -104,7 +104,7 @@ reset_kernel_filter(pcap_t *handle)
 	if (opt = getenv("PFQ_GROUP"))
 		gid = atoi(opt);
 
-	return pfq_group_fprog_reset(handle->q_data.q, gid);
+	return pfq_group_fprog_reset(handle->md.pfq.q, gid);
 }
 
 
@@ -491,6 +491,13 @@ pfq_activate_linux(pcap_t *handle)
 
 	device = handle->opt.source;
 
+	if (strncmp(device, "pfq", 3) == 0) {
+       		char * colon = strstr(device ,":");
+       		if (colon == NULL)
+       	       		device = ":";
+		else device = colon;
+	}
+
 	handle->read_op 		= pfq_read_linux;
 	handle->inject_op 		= pfq_inject_linux;
 	handle->setfilter_op 		= pfq_setfilter_linux;
@@ -501,9 +508,9 @@ pfq_activate_linux(pcap_t *handle)
 	handle->cleanup_op 		= pfq_cleanup_linux;
 	handle->set_datalink_op 	= NULL;	/* can't change data link type */
 
-	handle->q_data.cleanup 		= 0;
-        handle->q_data.tx_async 	= Q_TX_ASYNC_DEFERRED;
-	handle->q_data.tx_batch 	= batch;
+	handle->md.pfq.cleanup 		= 0;
+        handle->md.pfq.tx_async 	= Q_TX_ASYNC_DEFERRED;
+	handle->md.pfq.tx_batch 	= batch;
 
 	handle->fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (handle->fd == -1) {
@@ -578,7 +585,7 @@ pfq_activate_linux(pcap_t *handle)
 					return PCAP_ERROR;
 				}
 
-				handle->q_data.cleanup |= (1 << n);
+				handle->md.pfq.cleanup |= (1 << n);
 				handle->md.must_do_on_close |= MUST_CLEAR_PROMISC;
 			}
 
@@ -617,25 +624,25 @@ pfq_activate_linux(pcap_t *handle)
 		{
                 	fprintf(stderr, "[PFQ] binding group %d on dev %s...\n", gid, dev);
 
-			if (pfq_bind_group(handle->q_data.q, gid, dev, queue) == -1) {
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			if (pfq_bind_group(handle->md.pfq.q, gid, dev, queue) == -1) {
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 				return PCAP_ERROR;
 			}
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_nogroup_(caplen, slots, caplen, tx_slots);
-		if (handle->q_data.q == NULL) {
+		handle->md.pfq.q = pfq_open_nogroup_(caplen, slots, caplen, tx_slots);
+		if (handle->md.pfq.q == NULL) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 
                 fprintf(stderr, "[PFQ] group = %d\n", gid);
 
-		if (pfq_join_group(handle->q_data.q, gid, Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED) < 0) {
+		if (pfq_join_group(handle->md.pfq.q, gid, Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED) < 0) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 
@@ -652,17 +659,17 @@ pfq_activate_linux(pcap_t *handle)
 		{
                 	fprintf(stderr, "[PFQ] binding socket on dev %s...\n", dev);
 
-			if (pfq_bind(handle->q_data.q, dev, queue) == -1) {
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			if (pfq_bind(handle->md.pfq.q, dev, queue) == -1) {
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 				return PCAP_ERROR;
 			}
 			return 0;
 		}
 
-		handle->q_data.q = pfq_open_group(Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED, caplen, slots, caplen, tx_slots);
-		if (handle->q_data.q == NULL) {
+		handle->md.pfq.q = pfq_open_group(Q_CLASS_DEFAULT, Q_POLICY_GROUP_SHARED, caplen, slots, caplen, tx_slots);
+		if (handle->md.pfq.q == NULL) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 
@@ -674,9 +681,9 @@ pfq_activate_linux(pcap_t *handle)
 		}
 	}
 
-        gid = pfq_group_id(handle->q_data.q);
+        gid = pfq_group_id(handle->md.pfq.q);
 	if (gid == -1) {
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 		goto fail;
 	}
 
@@ -686,10 +693,10 @@ pfq_activate_linux(pcap_t *handle)
 
         	fprintf(stderr, "[PFQ] binding tx on %s, txq %d.\n", first_dev, txq);
 
-		if (pfq_bind_tx(handle->q_data.q, first_dev, txq) < 0) {
+		if (pfq_bind_tx(handle->md.pfq.q, first_dev, txq) < 0) {
 
 			free(first_dev);
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 
@@ -702,9 +709,9 @@ pfq_activate_linux(pcap_t *handle)
 
         	fprintf(stderr, "[PFQ] function: %s\n", opt);
 
-		if (pfq_set_group_computation_from_string(handle->q_data.q, gid, opt) < 0) {
+		if (pfq_set_group_computation_from_string(handle->md.pfq.q, gid, opt) < 0) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 	}
@@ -713,9 +720,9 @@ pfq_activate_linux(pcap_t *handle)
 
 	if (opt = getenv("PFQ_VLAN_ID")) {
 
-                if (pfq_vlan_filters_enable(handle->q_data.q, gid, 1) < 0) {
+                if (pfq_vlan_filters_enable(handle->md.pfq.q, gid, 1) < 0) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
                 	goto fail;
                 }
 
@@ -725,9 +732,9 @@ pfq_activate_linux(pcap_t *handle)
 
                 	fprintf(stderr, "[PFQ] group %d setting vlan filer id=%d\n", gid, vid);
 
-			if (pfq_vlan_set_filter(handle->q_data.q, gid, vid)  == -1) {
+			if (pfq_vlan_set_filter(handle->md.pfq.q, gid, vid)  == -1) {
 
-				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 				return PCAP_ERROR;
 			}
 			return 0;
@@ -739,15 +746,15 @@ pfq_activate_linux(pcap_t *handle)
 
 	/* enable timestamping */
 
-	if (pfq_timestamp_enable(handle->q_data.q, 1) == -1) {
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+	if (pfq_timestamp_enable(handle->md.pfq.q, 1) == -1) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 		goto fail;
 	}
 
 	/* enable socket */
 
-	if (pfq_enable(handle->q_data.q) == -1) {
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+	if (pfq_enable(handle->md.pfq.q) == -1) {
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 		goto fail;
 	}
 
@@ -759,16 +766,16 @@ pfq_activate_linux(pcap_t *handle)
 
         	fprintf(stderr, "[PFQ] starting tx thread on %d node...\n", node);
 
-         	if (pfq_start_tx_thread(handle->q_data.q, node) < 0) {
+         	if (pfq_start_tx_thread(handle->md.pfq.q, node) < 0) {
 
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 			goto fail;
 		}
 
-		handle->q_data.tx_async = Q_TX_ASYNC_THREADED;
+		handle->md.pfq.tx_async = Q_TX_ASYNC_THREADED;
 	}
 
-	/* handle->selectable_fd = pfq_get_fd(handle->q_data.q); */
+	/* handle->selectable_fd = pfq_get_fd(handle->md.pfq.q); */
 
 	handle->selectable_fd = -1;
 	return 0;
@@ -784,14 +791,14 @@ pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
 	int ret;
 
-	if (handle->q_data.tx_batch == 1 &&
-	    handle->q_data.tx_async == Q_TX_ASYNC_DEFERRED)
-		ret = pfq_send(handle->q_data.q, buf, size);
+	if (handle->md.pfq.tx_batch == 1 &&
+	    handle->md.pfq.tx_async == Q_TX_ASYNC_DEFERRED)
+		ret = pfq_send(handle->md.pfq.q, buf, size);
 	else
-		ret = pfq_send_async(handle->q_data.q, buf, size, handle->q_data.tx_batch, handle->q_data.tx_async);
+		ret = pfq_send_async(handle->md.pfq.q, buf, size, handle->md.pfq.tx_batch, handle->md.pfq.tx_async);
 
 	if (ret == -1) {
-		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->q_data.q));
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "%s", pfq_error(handle->md.pfq.q));
 		return PCAP_ERROR;
 	}
 	return ret;
@@ -806,7 +813,7 @@ pfq_cleanup_linux(pcap_t *handle)
 	{
 		struct ifreq ifr;
 
-		if (!(handle->q_data.cleanup & (1 << n++)))
+		if (!(handle->md.pfq.cleanup & (1 << n++)))
 			return 0;
 
 		fprintf(stderr, "[PFQ] clear promisc on dev %s...\n", dev);
@@ -849,10 +856,10 @@ pfq_cleanup_linux(pcap_t *handle)
 		}
 	}
 
-	if(handle->q_data.q) {
+	if(handle->md.pfq.q) {
 		fprintf(stderr, "[PFQ] close socket.\n");
-		pfq_close(handle->q_data.q);
-		handle->q_data.q = NULL;
+		pfq_close(handle->md.pfq.q);
+		handle->md.pfq.q = NULL;
 	}
 
 	close(handle->fd);
@@ -875,18 +882,18 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 
 	pfq_iterator_t it, it_end;
 
-	it =  handle->q_data.current;
-	it_end = handle->q_data.end;
+	it =  handle->md.pfq.current;
+	it_end = handle->md.pfq.end;
 
         if (it == it_end) {
 
-        	if (pfq_read(handle->q_data.q, &nq, handle->md.timeout > 0 ? handle->md.timeout * 1000 : 1000000) < 0) {
+        	if (pfq_read(handle->md.pfq.q, &nq, handle->md.timeout > 0 ? handle->md.timeout * 1000 : 1000000) < 0) {
 			snprintf(handle->errbuf, sizeof(handle->errbuf), "PFQ read error");
 			return PCAP_ERROR;
 		}
 
-		it = handle->q_data.current = pfq_net_queue_begin(&nq);
-	        it_end = handle->q_data.end = pfq_net_queue_end(&nq);
+		it = handle->md.pfq.current = pfq_net_queue_begin(&nq);
+	        it_end = handle->md.pfq.end = pfq_net_queue_end(&nq);
 	}
 
 	for(; (max_packets <= 0 || n > 0) && (it != it_end); it = pfq_net_queue_next(&nq, it))
@@ -935,7 +942,7 @@ pfq_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		return PCAP_ERROR_BREAK;
 	}
 
-	handle->q_data.current = it;
+	handle->md.pfq.current = it;
 	return handle->md.packets_read-start;
 }
 
@@ -954,7 +961,7 @@ pfq_stats_linux(pcap_t *handle, struct pcap_stat *stat)
 	struct pfq_stats qstats;
 	long if_dropped = 0;
 
-	if(pfq_get_stats(handle->q_data.q, &qstats) < 0)
+	if(pfq_get_stats(handle->md.pfq.q, &qstats) < 0)
         	return -1;
 
 	if (handle->opt.promisc) {

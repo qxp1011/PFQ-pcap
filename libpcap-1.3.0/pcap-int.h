@@ -155,6 +155,18 @@ struct pcap_md {
 	long	proc_dropped; /* packets reported dropped by /proc/net/dev */
 #endif /* linux */
 
+#ifdef PCAP_SUPPORT_PFQ
+    struct pfq_pcap_data
+    {
+        pfq_t          *q;
+        pfq_iterator_t 	current;
+        pfq_iterator_t 	end;
+        uint64_t        cleanup;
+        int 		tx_async;
+        int 		tx_batch;
+    } pfq;
+#endif
+
 #ifdef HAVE_DAG_API
 #ifdef HAVE_DAG_STREAMS_API
 	u_char	*dag_mem_bottom;	/* DAG card current memory bottom pointer */
@@ -248,18 +260,6 @@ typedef int	(*setmintocopy_op_t)(pcap_t *, int);
 typedef void	(*cleanup_op_t)(pcap_t *);
 
 struct pcap {
-
-#ifdef PCAP_SUPPORT_PFQ
-    struct pfq_pcap_handler
-    {
-        pfq_t           *q;
-        pfq_iterator_t 	current;
-        pfq_iterator_t 	end;
-        uint64_t        cleanup;
-        int 		tx_async;
-        int 		tx_batch;
-    } q_data;
-#endif
 
 #ifdef WIN32
 	ADAPTER *adapter;
