@@ -492,6 +492,17 @@ pfq_getenv(pcap_t *handle)
 	return rc;
 }
 
+static char *
+pfq_parse_filename(const char *device)
+{
+	char *str;
+	if (strncmp(device, "pfq/", 4) != 0)
+		return NULL;
+	str = strdup(device+4);
+	return strtok(str, ":");
+}
+
+
 static int
 pfq_parse_opt(struct pfq_opt *opt, const char *filename)
 {
@@ -596,16 +607,39 @@ pfq_activate_linux(pcap_t *handle)
 	if (handle->opt.buffer_size/handle->opt.pfq.caplen > handle->opt.pfq.rx_slots)
         	handle->opt.pfq.rx_slots = handle->opt.buffer_size/handle->opt.pfq.caplen;
 
-        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d, tx_slots = %d, tx_batch = %d\n", handle->opt.buffer_size, handle->opt.pfq.caplen, handle->opt.pfq.rx_slots, handle->opt.pfq.tx_slots, handle->opt.pfq.tx_batch);
-
 	device = handle->opt.source;
 
-	if (strncmp(device, "pfq", 3) == 0) {
-       		char * colon = strstr(device ,":");
+	if (strncmp(device, "pfq/", 4) == 0) {
+
+		char * colon, *config;
+
+       	 	config = pfq_parse_filename(device);
+		if (config == NULL) {
+			fprintf(stderr, "[PFQ] parse filename error: %s\n", device);
+			return -1;
+		}
+
+        	fprintf(stderr, "[PFQ] parsing local file '%s'\n", config);
+
+		if (pfq_parse_opt(&handle->opt.pfq, config) == -1) {
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "pfq: local config error");
+			return PCAP_ERROR;
+		}
+
+		free(config);
+
+       		colon = strstr(device ,":");
        		if (colon == NULL)
        	       		device = ":";
 		else device = colon;
 	}
+
+        fprintf(stderr, "[PFQ] buffer_size = %d caplen = %d, slots = %d, tx_slots = %d, tx_batch = %d\n",
+        		handle->opt.buffer_size,
+        		handle->opt.pfq.caplen,
+        		handle->opt.pfq.rx_slots,
+        		handle->opt.pfq.tx_slots,
+        		handle->opt.pfq.tx_batch);
 
 	handle->read_op 		= pfq_read_linux;
 	handle->inject_op 		= pfq_inject_linux;
