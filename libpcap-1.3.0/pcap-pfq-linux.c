@@ -848,7 +848,7 @@ pfq_activate_linux(pcap_t *handle)
 
 	if (handle->opt.pfq.comp) {
 
-        	fprintf(stderr, "[PFQ] computation: %s\n", handle->opt.pfq.comp);
+        	fprintf(stderr, "[PFQ] setting computation '%s' for group %d\n", handle->opt.pfq.comp, handle->opt.pfq.group);
 
 		if (pfq_set_group_computation_from_string(handle->md.pfq.q, handle->opt.pfq.group, handle->opt.pfq.comp) < 0) {
 
