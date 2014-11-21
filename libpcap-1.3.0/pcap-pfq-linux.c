@@ -508,7 +508,7 @@ pfq_activate_linux(pcap_t *handle)
 	handle->cleanup_op 		= pfq_cleanup_linux;
 	handle->set_datalink_op 	= NULL;	/* can't change data link type */
 
-	handle->md.pfq.cleanup 		= 0;
+	handle->md.pfq.ifs_promisc 	= 0;
         handle->md.pfq.tx_async 	= Q_TX_ASYNC_DEFERRED;
 	handle->md.pfq.tx_batch 	= batch;
 
@@ -585,7 +585,7 @@ pfq_activate_linux(pcap_t *handle)
 					return PCAP_ERROR;
 				}
 
-				handle->md.pfq.cleanup |= (1 << n);
+				handle->md.pfq.ifs_promisc |= (1 << n);
 				handle->md.must_do_on_close |= MUST_CLEAR_PROMISC;
 			}
 
@@ -813,7 +813,7 @@ pfq_cleanup_linux(pcap_t *handle)
 	{
 		struct ifreq ifr;
 
-		if (!(handle->md.pfq.cleanup & (1 << n++)))
+		if (!(handle->md.pfq.ifs_promisc & (1 << n++)))
 			return 0;
 
 		fprintf(stderr, "[PFQ] clear promisc on dev %s...\n", dev);

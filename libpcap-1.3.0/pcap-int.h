@@ -161,7 +161,7 @@ struct pcap_md {
         pfq_t          *q;
         pfq_iterator_t 	current;
         pfq_iterator_t 	end;
-        uint64_t        cleanup;
+        uint64_t        ifs_promisc;
         int 		tx_async;
         int 		tx_batch;
     } pfq;
