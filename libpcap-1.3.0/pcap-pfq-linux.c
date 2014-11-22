@@ -502,9 +502,49 @@ pfq_parse_filename(const char *device)
 	return strtok(str, ":");
 }
 
+#define KEY(value) [KEY_ ## value] = # value
+
+#define KEY_ERR 	      	-1
+#define KEY_group 	       	0
+#define KEY_caplen 	    	1
+#define KEY_rx_slots		2
+#define KEY_tx_slots            3
+#define KEY_tx_queue 		4
+#define KEY_tx_node 		5
+#define KEY_vlan 		6
+#define KEY_computation 	7
+
+
+struct pfq_conf_key {
+	const char *value;
+} pfq_conf_keys[] =
+{
+	KEY(group),
+	KEY(caplen),
+	KEY(rx_slots),
+	KEY(tx_slots),
+	KEY(tx_queue),
+	KEY(tx_node),
+	KEY(vlan),
+	KEY(computation)
+};
+
 
 static int
-pfq_parse_opt(struct pfq_opt *opt, const char *filename)
+pfq_conf_find_key(const char *key)
+{
+	int n;
+	for(n = 0; n < sizeof(pfq_conf_keys)/sizeof(pfq_conf_keys[0]); n++)
+	{
+        	if (strcasecmp(pfq_conf_keys[n].value, key) == 0)
+        		return n;
+	}
+	return -1;
+}
+
+
+static int
+pfq_parse_config(struct pfq_opt *opt, const char *filename)
 {
 	char line[256];
 	FILE *file;
@@ -522,6 +562,7 @@ pfq_parse_opt(struct pfq_opt *opt, const char *filename)
 		int n = sscanf(line, "%m[^=]=%m[ \ta-z0-9=>_,-]",&key, &value);
 
 		switch(n) {
+
 		case 1: {
 			if (strlen(string_trim(key))) {
 				fprintf(stderr, "[PFQ] parse error at: %s\n", key);
@@ -533,40 +574,20 @@ pfq_parse_opt(struct pfq_opt *opt, const char *filename)
 
 			char *tkey = string_trim(key);
 
-			if (strcasecmp(tkey, "group") == 0) {
-				opt->group = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "caplen") == 0) {
-				opt->caplen = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "rx_slots") == 0) {
-				opt->rx_slots = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "tx_slots") == 0) {
-				opt->tx_slots = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "tx_queue") == 0) {
-				opt->tx_queue = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "tx_node") == 0) {
-				opt->tx_node = atoi(value);
-			}
-			else
-			if (strcasecmp(tkey, "vlan") == 0) {
-				opt->vlan = strdup(string_trim(value));
-			}
-			else
-			if (strcasecmp(tkey, "computation") == 0) {
-				opt->comp = strdup(string_trim(value));
-			}
-			else {
-				fprintf(stderr, "[PFQ] error: unknown keyword: '%s'\n", key);
+			switch(pfq_conf_find_key(tkey)) {
+			case KEY_group:  	opt->group 	= atoi(value); 	break;
+			case KEY_caplen:	opt->caplen 	= atoi(value);  break;
+			case KEY_rx_slots: 	opt->rx_slots 	= atoi(value);  break;
+			case KEY_tx_slots:	opt->tx_slots 	= atoi(value);  break;
+			case KEY_tx_queue: 	opt->tx_queue 	= atoi(value);  break;
+			case KEY_tx_node: 	opt->tx_node 	= atoi(value);  break;
+			case KEY_vlan:		opt->vlan 	= strdup(string_trim(value)); break;
+			case KEY_computation:	opt->comp 	= strdup(string_trim(value)); break;
+			case KEY_ERR: {
+				fprintf(stderr, "[PFQ] %s: unknown keyword '%s'\n", filename, tkey);
 				rc = -1;
+ 			} break;
+			default: assert(!"[PFQ] config parser: internal error!");
 			}
 
 		} break;
@@ -619,10 +640,8 @@ pfq_activate_linux(pcap_t *handle)
 			return -1;
 		}
 
-        	fprintf(stderr, "[PFQ] parsing local file '%s'\n", config);
-
-		if (pfq_parse_opt(&handle->opt.pfq, config) == -1) {
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "pfq: local config error");
+		if (pfq_parse_config(&handle->opt.pfq, config) == -1) {
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "pfq: config error");
 			return PCAP_ERROR;
 		}
 
