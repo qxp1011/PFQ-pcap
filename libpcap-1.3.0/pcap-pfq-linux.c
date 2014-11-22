@@ -559,41 +559,41 @@ pfq_parse_config(struct pfq_opt *opt, const char *filename)
 	while (fgets(line, sizeof(line), file)) {
 
 		char *key = NULL, *value = NULL;
+
 		int n = sscanf(line, "%m[^=]=%m[ \ta-z0-9=>_,-]",&key, &value);
 
-		switch(n) {
-
-		case 1: {
-			if (strlen(string_trim(key))) {
-				fprintf(stderr, "[PFQ] parse error at: %s\n", key);
-				rc = -1;
-			}
-		} break;
-
-		case 2: {
-
+		if (n > 0) {
 			char *tkey = string_trim(key);
 
-			switch(pfq_conf_find_key(tkey)) {
-			case KEY_group:  	opt->group 	= atoi(value); 	break;
-			case KEY_caplen:	opt->caplen 	= atoi(value);  break;
-			case KEY_rx_slots: 	opt->rx_slots 	= atoi(value);  break;
-			case KEY_tx_slots:	opt->tx_slots 	= atoi(value);  break;
-			case KEY_tx_queue: 	opt->tx_queue 	= atoi(value);  break;
-			case KEY_tx_node: 	opt->tx_node 	= atoi(value);  break;
-			case KEY_vlan:		opt->vlan 	= strdup(string_trim(value)); break;
-			case KEY_computation:	opt->comp 	= strdup(string_trim(value)); break;
-			case KEY_ERR: {
-				fprintf(stderr, "[PFQ] %s: unknown keyword '%s'\n", filename, tkey);
+			if (!strlen(tkey))
+				goto next;
+
+			if (tkey[0] == '#')
+				goto next;
+
+			if (n != 2) {
+				fprintf(stderr, "[PFQ] parse error at: %s\n", key);
 				rc = -1;
- 			} break;
-			default: assert(!"[PFQ] config parser: internal error!");
+				goto next;
 			}
 
-		} break;
-
+			switch(pfq_conf_find_key(tkey)) {
+				case KEY_group:  	opt->group 	= atoi(value); 	break;
+				case KEY_caplen:	opt->caplen 	= atoi(value);  break;
+				case KEY_rx_slots: 	opt->rx_slots 	= atoi(value);  break;
+				case KEY_tx_slots:	opt->tx_slots 	= atoi(value);  break;
+				case KEY_tx_queue: 	opt->tx_queue 	= atoi(value);  break;
+				case KEY_tx_node: 	opt->tx_node 	= atoi(value);  break;
+				case KEY_vlan:		opt->vlan 	= strdup(string_trim(value)); break;
+				case KEY_computation:	opt->comp 	= strdup(string_trim(value)); break;
+				case KEY_ERR: {
+					fprintf(stderr, "[PFQ] %s: unknown keyword '%s'\n", filename, tkey);
+					rc = -1;
+				} break;
+				default: assert(!"[PFQ] config parser: internal error!");
+			}
 		}
-
+	next:
 		free(key);
 		free(value);
 
