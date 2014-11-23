@@ -8,7 +8,7 @@ PFQ is a network monitoring framework designed for the Linux operating system
 that allows efficient packet capturing, in-kernel functional processing and packet 
 steering across sockets.
 
-This version of pcap library is extended to natively support PFQ, thus allowing 
+This version of pcap library is intended to support the PFQ framework, thus allowing 
 legacy applications to exploit the capture acceleration of PFQ and at the 
 same time, to take advantage of PFQ/lang computations to filter and dispatch packets
 across pcap sockets.
@@ -34,7 +34,7 @@ Details
 -------
 
 This implementation of pcap library is extended to support PFQ sockets. By default, 
-the library uses the AF_PACKET family. Only only when a special device name 
+the library makes use of AF_PACKET sockets. Only only when a special device name 
 is provided the PFQ acceleration takes place.
 
 The syntax of the device name is the following:
@@ -44,13 +44,13 @@ pfq[/config_file]:[device[:device[:device..]]]
 ```
 
 Additional PFQ parameters are passed to the library in different ways, by means of
-environment variables or by a configuration file.
+environment variables or a configuration file.
 
 
 Environment variables
 ---------------------
 
-The following variables specify useful parameters:
+The following variables specify additional PFQ parameters, not available from the pcap APIs:
 
 
 Variable          | Meaning
@@ -59,16 +59,16 @@ PFQ_GROUP         | Specify the PFQ group for the process.
 PFQ_CAPLEN        | Override the snaplen value.
 PFQ_RX_SLOTS      | Define the RX queue length of the socket.   
 PFQ_TX_SLOTS      | Define the TX queue length of the socket.   
-PFQ_TX_QUEUE      | Set the HW queue passed to the driver.
+PFQ_TX_QUEUE      | Set the TX HW queue passed to the driver.
 PFQ_TX_NODE       | Set the core for the TX kthread (optional)
-PFQ_TX_BATCH      | Set the batch length enabled for transmission.
+PFQ_TX_BATCH      | Set the transmission batch length.
 PFQ_COMPUTATION   | Set the PFQ/lang computation for the group.
 
 
 Configuration Files
 -------------------
 
-In addition to the environment variables, it is possible to specify
+In addition to the environmnet variables it is also possible to specify
 a configuration file, on per-socket basis. This solve the problem of passing
 different values to multiple pcap devices in multi-threaded applications.
 
@@ -78,13 +78,13 @@ The path of the configuration file is passed to the library with the following s
 pfq/config_file:[device[:device[:device..]]]
 ```
 
-The syntax of the configuration file is a simple key-value grammar.
+The configuration file is based on the simple key-value grammar.
 
 ```
 # PFQ configuration file
 
 group  = 11
-caplen = 64k
+caplen = 64
 
 rx_slots = 131072
 
@@ -96,13 +96,13 @@ computation = ip >-> steer_flow
 Examples
 --------
 
-Simple:
+Single tcpdump session:
 
 ```
 PFQ_GROUP=42 tcpdump -n -i pfq:eth0:eth1
 ```
 
-Simple, using `pfq-pcap.conf` configuration file:
+Tcpdump using `pfq-pcap.conf` configuration file:
 
 ```
 tcpdump -n -i pfq/pfq-pcap.conf:eth0:eth1
@@ -115,7 +115,7 @@ Load balancing TCP/UDP flows:
 
 PFQ_GROUP=42 PFQ_COMPUTATION=steer_flow tcpdump -n -i pfq:eth0:eth1
 
-# additional instances need to specify only the PFQ_GROUP...
+# additional instances specify only the PFQ_GROUP...
 
 PFQ_GORUP=42 tcpdump -n -i pfq
 PFQ_GORUP=42 tcpdump -n -i pfq
