@@ -9,8 +9,8 @@ that allows efficient packet capturing, in-kernel functional processing and pack
 steering across sockets.
 
 This version of pcap library is intended to support the PFQ framework, thus allowing 
-legacy applications to exploit the capture acceleration of PFQ and at the 
-same time, to take advantage of PFQ/lang computations to filter and dispatch packets
+legacy applications to exploit the capture acceleration of PFQ, and at the 
+same time to take advantage of PFQ/lang computations to filter and dispatch packets
 across pcap sockets.
 
 The pcap library interface is *unchanged*. Additional data (e.g. pfq group) is passed 
@@ -33,7 +33,7 @@ Features
 Details
 -------
 
-This implementation of pcap library is extended to support PFQ sockets. By default, 
+This implementation of pcap library is extended to support PFQ sockets. By default
 the library makes use of AF_PACKET sockets. Only only when a special device name 
 is provided the PFQ acceleration takes place.
 
@@ -50,7 +50,7 @@ environment variables or a configuration file.
 Environment variables
 ---------------------
 
-The following variables specify additional PFQ parameters, not available from the pcap APIs:
+The following variables specify additional PFQ parameters not allowed in pcap APIs:
 
 
 Variable          | Meaning
@@ -69,7 +69,7 @@ Configuration Files
 -------------------
 
 In addition to the environmnet variables it is also possible to specify
-a configuration file, on per-socket basis. This solve the problem of passing
+a configuration file on per-socket basis. This solve the problem of passing
 different values to multiple pcap devices in multi-threaded applications.
 
 The path of the configuration file is passed to the library with the following syntax:
@@ -78,7 +78,7 @@ The path of the configuration file is passed to the library with the following s
 pfq/config_file:[device[:device[:device..]]]
 ```
 
-The configuration file is based on the simple key-value grammar.
+The configuration is based on the simple key-value grammar.
 
 ```
 # PFQ configuration file
@@ -102,7 +102,7 @@ Single tcpdump session:
 PFQ_GROUP=42 tcpdump -n -i pfq:eth0:eth1
 ```
 
-Tcpdump using `pfq-pcap.conf` configuration file:
+tcpdump using `pfq-pcap.conf` configuration file:
 
 ```
 tcpdump -n -i pfq/pfq-pcap.conf:eth0:eth1
