@@ -949,8 +949,7 @@ pfq_inject_linux(pcap_t *handle, const void * buf, size_t size)
 {
 	int ret;
 
-	if (handle->opt.pfq.tx_batch == 1 &&
-	    handle->md.pfq.tx_async == Q_TX_ASYNC_DEFERRED)
+	if (handle->opt.pfq.tx_batch == 1)
 		ret = pfq_send(handle->md.pfq.q, buf, size);
 	else
 		ret = pfq_send_async(handle->md.pfq.q, buf, size, handle->opt.pfq.tx_batch, handle->md.pfq.tx_async);
